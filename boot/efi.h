@@ -233,8 +233,10 @@ typedef struct efi_simple_file_system_protocol {
 	uint64_t	revision;
 	
 	efi_status (*open_volume)
-		(	struct efi_simple_file_system_protocol *,
-			efi_file_protocol **	);
+	(
+		struct efi_simple_file_system_protocol * this,
+		efi_file_protocol ** root
+	);
 
 } efi_simple_file_system_protocol;
 
@@ -261,11 +263,13 @@ typedef struct efi_boot_services {
 	void *			free_pages;
 
 	efi_status (*get_memory_map)
-			(	uint64_t *,
-				efi_memory_descriptor *,
-				uint64_t *,
-				uint64_t *,
-				uint32_t *	);
+	(
+		uint64_t *,
+		efi_memory_descriptor *,
+		uint64_t *,
+		uint64_t *,
+		uint32_t *
+	);
 	
 	void *			allocate_pool;
 	void *			free_pool;
@@ -325,12 +329,14 @@ typedef struct efi_boot_services {
 	 */
 
 	efi_status (*open_protocol)
-			(	void *,
-			 	efi_guid *,
-				void **,
-				void *,
-				void *,
-				uint32_t	);
+	(
+		void *,
+		efi_guid *,
+		void **,
+		void *,
+		void *,
+		uint32_t
+	);
 
 	void *			close_protocol;
 	void *			open_protocol_information;
@@ -367,25 +373,37 @@ typedef struct efi_boot_services {
 
 typedef struct efi_simple_text_output_protocol {
 
-	EFI_STATUS (*reset)
-		(struct efi_simple_text_output_protocol *, efi_bool);
+	efi_status (*reset)
+	(
+		struct efi_simple_text_output_protocol *,
+		efi_bool
+	);
 	
-	EFI_STATUS (*output_string)
-		(struct efi_simple_text_output_protocol *, int16_t *);
+	efi_status (*output_string)
+	(
+		struct efi_simple_text_output_protocol *,
+		int16_t *
+	);
 	
 	void *				test_string;
 	void *				query_mode;
 	void *				set_mode;
 
-	EFI_STATUS (*set_attribute)
-		(struct efi_simple_text_output_protocol *, uint64_t attribute);
+	efi_status (*set_attribute)
+	(
+		struct efi_simple_text_output_protocol *,
+		uint64_t attribute
+	);
 
-	EFI_STATUS (*clear_screen)
-		(struct efi_simple_text_output_protocol *);
+	efi_status (*clear_screen)
+	(
+		struct efi_simple_text_output_protocol *
+	);
 	
 	void *				set_cursor_position;
 	void *				enable_cursor;
 	void *				mode;
+
 } efi_simple_text_output_protocol;
 
 /*
@@ -393,6 +411,7 @@ typedef struct efi_simple_text_output_protocol {
  */
 
 typedef struct efi_system_table {
+
 	efi_table_header			hdr;
 	int16_t *				firmware_vendor;
 	uint32_t				firmware_revision;
@@ -406,6 +425,7 @@ typedef struct efi_system_table {
 	efi_boot_services *			boot_services;
 	uint64_t				number_of_table_entries;
 	uint64_t				configuration_table;
+
 } efi_system_table;
 
 #endif /* _EFI_H_ */
