@@ -1,5 +1,5 @@
 /*
- * efi.h -- EFI data types/structures
+ * `efi.h` -- EFI data types/structures
  * Copyright (c) 2023 Alan Potteiger
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
@@ -22,13 +22,17 @@
  * Protocol GUIDs
  */
 
-#define EFI_LOADED_IMAGE_DEVICE_PATH_PROTOCOL_GUID (efi_guid) \
-			{ 0xbc62157e, 0x3e33, 0x4fec, \
-			{ 0x99, 0x20, 0x2d, 0x3b, 0x36, 0xd7, 0x50, 0xdf }}
-
 #define EFI_LOADED_IMAGE_PROTOCOL_GUID (efi_guid) \
 			{ 0x5B1B31A1, 0x9562, 0x11d2,\
     			{ 0x8E, 0x3F, 0x00, 0xA0, 0xC9, 0x69, 0x72, 0x3B }}
+
+#define EFI_SIMPLE_FILE_SYSTEM_PROTOCOL_GUID (efi_guid) \
+			{ 0x0964e5b22, 0x6459, 0x11d2, \
+  			{ 0x8e, 0x39, 0x00, 0xa0, 0xc9, 0x69, 0x72, 0x3b }}
+
+#define EFI_FILE_INFO_ID (efi_guid) \
+			{ 0x09576e92, 0x6d3f, 0x11d2, \
+  			{ 0x8e, 0x39, 0x00, 0xa0, 0xc9, 0x69, 0x72, 0x3b }}
 
 /*
  * UEFI boolean... 1 byte value
@@ -80,6 +84,12 @@ typedef int8_t efi_bool;
 typedef uint64_t efi_status;
 
 /*
+ * efi_handle is just a void pointer...
+ */
+
+typedef void* efi_handle;
+
+/*
  * Protocol opening attributes
  */
 
@@ -113,7 +123,7 @@ struct efi_system_table;
  * 
  * - Why is this API just spider webs of struct/function pointers? Hard as hell
  *   to follow. Some of the diagrams in the specification I thought were jokes
- *   at first, they look absolutely ridiculous.
+ *   at first, they look absolutely ridiculous. Better ways to do it.
  *
  * - Why the hell are these functions doing sooo many things? What happened to
  *   do one thing and do it well? These functions take practically 42 arguments!
@@ -123,27 +133,51 @@ struct efi_system_table;
  *
  * - This API just shits on the C language. I'll keep repeating this.
  *
- * - I'll add to the list as I keep working...
+ * - Unicode/UTF-16 strings??? This is just god awful stuff right here.
  *
+ * - GUIDs... 
+ *
+ * - Will add more as I continue.
+ *									-- Alan
  */
 
 typedef struct efi_guid {
+
 	uint32_t	data1;
 	uint16_t	data2;
 	uint16_t	data3;
 	uint8_t		data4[8];
+
 } efi_guid;
+
+typedef struct efi_time {
+
+	uint16_t	year;
+	uint8_t		month;
+	uint8_t		day;
+	uint8_t		hour;
+	uint8_t		minute;
+	uint8_t		second;
+	uint8_t		pad1;
+	uint32_t	nanosecond;
+	int16_t		timeZone;
+	uint8_t		daylight;
+	uint8_t		pad2;
+
+} efi_time;
 
 /*
  * Precedes many EFI tables
  */
 
 typedef struct efi_table_header {
+
 	uint64_t signature;
 	uint32_t revision;
 	uint32_t header_size;
 	uint32_t crc32;
 	uint32_t reserved;
+
 } efi_table_header;
 
 /*
@@ -151,11 +185,13 @@ typedef struct efi_table_header {
  */
 
 typedef struct efi_memory_descriptor {
+
 	uint32_t		type;
 	uint64_t		physical_start;
 	uint64_t		virtual_start;
 	uint64_t		number_of_pages;
 	uint64_t		attribute;
+
 } efi_memory_descriptor;
 
 /*
@@ -163,9 +199,11 @@ typedef struct efi_memory_descriptor {
  */
 
 typedef struct efi_device_path_protocol {
+
 	uint8_t	type;
 	uint8_t sub_type;
 	uint8_t	length[2];
+
  } efi_device_path_protocol;
 
 /*
@@ -173,15 +211,16 @@ typedef struct efi_device_path_protocol {
  */
 
 typedef struct efi_loaded_image_protocol {
+
 	uint32_t			revision;
-	void *				parent_handle;
+	efi_handle			parent_handle;
 	struct efi_system_table *	system_table;
 
    	/*
 	 * Source location of image
 	 */
 
-	void *				device_handle;
+	efi_handle				device_handle;
 	efi_device_path_protocol *	file_path;
 	void *				reserved;
 
@@ -201,28 +240,72 @@ typedef struct efi_loaded_image_protocol {
 	uint64_t			image_code_type;
 	uint64_t			image_data_type;
 	void *				unload;
+
 } efi_loaded_image_protocol;
 
 /*
  * File system access and manipulation
  */
 
+typedef struct efi_file_info {
+
+	uint64_t	size;
+	uint64_t	file_size;
+	uint64_t	physical_size;
+	efi_time	create_time;
+	efi_time	last_access_time;
+	efi_time	modification_time;
+	uint64_t	attribute;
+	int16_t		file_name[];
+
+} efi_file_info;
+
+#define EFI_FILE_MODE_READ       0x0000000000000001
+#define EFI_FILE_MODE_WRITE      0x0000000000000002
+#define EFI_FILE_MODE_CREATE     0x8000000000000000
+
 typedef struct efi_file_protocol {
+
 	uint64_t	revision;
-	void *		open;
+
+	efi_status (*open)
+	(
+		struct efi_file_protocol *	this,
+  		struct efi_file_protocol **	new_handle,
+  		int16_t *			file_name,
+  		uint64_t			open_mode,
+  		uint64_t			attributes
+	);
+
 	void *		close;
 	void *		delete;
-	void *		read;
+
+	efi_status (*read)
+	(
+		struct efi_file_protocol *	this,
+		uint64_t *			buffer_size,
+		void *				buffer
+	);
+
 	void *		write;
 	void *		get_position;
 	void *		set_position;
-	void *		get_info;
+
+	efi_status (*get_info)
+	(
+		struct efi_file_protocol *	this,
+		efi_guid *			information_type,
+		uint64_t *			buffer_size,
+		void *				buffer
+	);
+
 	void *		set_info;
 	void *		flush;
 	void *		open_ex;
 	void *		read_ex;
 	void *		write_ex;
 	void *		flush_ex;
+
 } efi_file_protocol;
 
 /*
@@ -230,12 +313,18 @@ typedef struct efi_file_protocol {
  */
 
 typedef struct efi_simple_file_system_protocol {
+
 	uint64_t	revision;
-	
+
+	/*
+	 * Opens the root directory of a volume.
+	 * Returns efi_file_protocol for it (root)
+	 */
+
 	efi_status (*open_volume)
 	(
-		struct efi_simple_file_system_protocol * this,
-		efi_file_protocol ** root
+		struct efi_simple_file_system_protocol *this,
+		efi_file_protocol **root
 	);
 
 } efi_simple_file_system_protocol;
@@ -262,13 +351,17 @@ typedef struct efi_boot_services {
 	void *			allocate_pages;
 	void *			free_pages;
 
+	/*
+	 * Returns the current memory map
+	 */
+
 	efi_status (*get_memory_map)
 	(
-		uint64_t *,
-		efi_memory_descriptor *,
-		uint64_t *,
-		uint64_t *,
-		uint32_t *
+		uint64_t *		memory_map_size,
+		efi_memory_descriptor *	memory_map,
+		uint64_t *		map_key,
+		uint64_t *		descriptor_size,
+		uint32_t *		descriptor_version
 	);
 	
 	void *			allocate_pool;
@@ -328,14 +421,18 @@ typedef struct efi_boot_services {
 	 * Open and close protocol services
 	 */
 
+	/*
+	 * Opens requested protocol against supplied handle
+	 */
+
 	efi_status (*open_protocol)
 	(
-		void *,
-		efi_guid *,
-		void **,
-		void *,
-		void *,
-		uint32_t
+		efi_handle 	handle,
+		efi_guid *	protocol,
+		void **		interface,
+		efi_handle	agent_handle,
+		efi_handle	controller_handle,
+		uint32_t	attributes
 	);
 
 	void *			close_protocol;
@@ -373,31 +470,47 @@ typedef struct efi_boot_services {
 
 typedef struct efi_simple_text_output_protocol {
 
+	/*
+	 * Resets text output
+	 */
+
 	efi_status (*reset)
 	(
-		struct efi_simple_text_output_protocol *,
-		efi_bool
+		struct efi_simple_text_output_protocol *this,
+		efi_bool				extended_verification
 	);
-	
+
+	/*
+	 * Writes a string to the output
+	 */
+
 	efi_status (*output_string)
 	(
-		struct efi_simple_text_output_protocol *,
-		int16_t *
+		struct efi_simple_text_output_protocol *this,
+		int16_t *				string
 	);
 	
 	void *				test_string;
 	void *				query_mode;
 	void *				set_mode;
 
+	/*
+	 * Sets background and foreground colors
+	 */
+
 	efi_status (*set_attribute)
 	(
-		struct efi_simple_text_output_protocol *,
-		uint64_t attribute
+		struct efi_simple_text_output_protocol *this,
+		uint64_t 				attribute
 	);
+
+	/*
+	 * Clears the screen
+	 */
 
 	efi_status (*clear_screen)
 	(
-		struct efi_simple_text_output_protocol *
+		struct efi_simple_text_output_protocol *this
 	);
 	
 	void *				set_cursor_position;

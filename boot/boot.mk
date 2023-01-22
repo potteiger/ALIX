@@ -18,9 +18,8 @@ $(BOOT): boot/bootx64.o
 boot/bootx64.o: boot/bootx64.c
 	$(BOOTCC) $(BOOTCFLAGS) -c boot/bootx64.c -o boot/bootx64.o
 boot-clean:
+	rm -f boot/bone.elf
 	rm -f $(BOOT)
 	rm -f boot/*.o boot/*.lib
 	rm -rf boot/EFI
-boot-run:
-	qemu-system-x86_64 -bios boot/OVMFX64.fd -hdb fat:rw:boot -serial stdio
 
