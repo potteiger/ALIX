@@ -21,7 +21,6 @@
 /*
  * Protocol GUIDs
  */
-
 #define EFI_LOADED_IMAGE_PROTOCOL_GUID (efi_guid) \
 			{ 0x5B1B31A1, 0x9562, 0x11d2,\
     			{ 0x8E, 0x3F, 0x00, 0xA0, 0xC9, 0x69, 0x72, 0x3B }}
@@ -37,7 +36,6 @@
 /*
  * UEFI boolean... 1 byte value
  */
-
 #define efi_true 1
 #define efi_false 0
 typedef int8_t efi_bool;
@@ -45,7 +43,6 @@ typedef int8_t efi_bool;
 /*
  * UEFI status codes
  */
-
 #define EFI_SUCCESS 		0	/* what you think? */
 #define EFI_LOAD_ERROR 		1 	/* Image failed to load */
 #define EFI_INVALID_PARAMETER 	2 	/* A parameter was incorrect */
@@ -86,7 +83,6 @@ typedef uint64_t efi_status;
 /*
  * efi_handle is just a void pointer...
  */
-
 typedef void* efi_handle;
 
 /*
@@ -101,6 +97,40 @@ typedef void* efi_handle;
 #define EFI_OPEN_PROTOCOL_EXCLUSIVE		0x00000020
 
 struct efi_system_table;
+
+/*
+ * EFI memory designations for memory maps, pages, pools
+ */
+typedef enum efi_memory_type {
+
+	efi_reserved_memory_type,
+	efi_loader_code,
+	efi_loader_data,
+	efi_boot_services_code,
+	efi_boot_services_data,
+	efi_runtime_services_code,
+	efi_runtime_services_data,
+	efi_conventional_memory,
+	efi_unusable_memory,
+	efi_ACPI_reclaim_memory,
+	efi_ACPI_memoryNVS,
+	efi_memory_mapped_IO,
+	efi_memory_mapped_IO_port_space,
+	efi_pal_code,
+	efi_persistent_memory,
+	efi_unaccepted_memory_type,
+	efi_max_memory_type
+
+} efi_memory_type;
+
+typedef enum efi_allocate_type 
+{
+	allocate_any_pages,
+	allocate_max_address,
+	allocate_address,
+	max_allocate_type
+
+} efi_allocate_type;
 
 /*
  * This API is shit. I'm going to take an opportunity to go on a small rant
@@ -169,7 +199,6 @@ typedef struct efi_time {
 /*
  * Precedes many EFI tables
  */
-
 typedef struct efi_table_header {
 
 	uint64_t signature;
@@ -183,7 +212,6 @@ typedef struct efi_table_header {
 /*
  * EFI memory descriptor, array of these are returned from get_memory_map()
  */
-
 typedef struct efi_memory_descriptor {
 
 	uint32_t		type;
@@ -197,7 +225,6 @@ typedef struct efi_memory_descriptor {
 /*
  * UEFI device paths
  */
-
 typedef struct efi_device_path_protocol {
 
 	uint8_t	type;
@@ -209,7 +236,6 @@ typedef struct efi_device_path_protocol {
 /*
  * Information and procedures attached to loaded EFI image
  */
-
 typedef struct efi_loaded_image_protocol {
 
 	uint32_t			revision;
@@ -219,7 +245,6 @@ typedef struct efi_loaded_image_protocol {
    	/*
 	 * Source location of image
 	 */
-
 	efi_handle				device_handle;
 	efi_device_path_protocol *	file_path;
 	void *				reserved;
@@ -227,14 +252,12 @@ typedef struct efi_loaded_image_protocol {
    	/*
 	 * Image's load options
 	 */
-	
 	uint32_t			load_options_size;
 	void *				load_options;
 
 	/*
 	 * Where the image was loaded
 	 */
-
    	void *				image_base;
 	uint64_t			image_size;
 	uint64_t			image_code_type;
@@ -246,7 +269,6 @@ typedef struct efi_loaded_image_protocol {
 /*
  * File system access and manipulation
  */
-
 typedef struct efi_file_info {
 
 	uint64_t	size;
@@ -311,7 +333,6 @@ typedef struct efi_file_protocol {
 /*
  * Get access to root of file system
  */
-
 typedef struct efi_simple_file_system_protocol {
 
 	uint64_t	revision;
@@ -320,7 +341,6 @@ typedef struct efi_simple_file_system_protocol {
 	 * Opens the root directory of a volume.
 	 * Returns efi_file_protocol for it (root)
 	 */
-
 	efi_status (*open_volume)
 	(
 		struct efi_simple_file_system_protocol *this,
@@ -332,7 +352,6 @@ typedef struct efi_simple_file_system_protocol {
 /*
  * Pointers to all boot services
  */
-
 typedef struct efi_boot_services {
 
 	efi_table_header	hdr;
@@ -340,21 +359,18 @@ typedef struct efi_boot_services {
 	/*
 	 * Task priority services
 	 */
-
 	void *			raise_TPL;
   	void *			restore_TPL;
 
 	/*
 	 * Memory services
 	 */
-
 	void *			allocate_pages;
 	void *			free_pages;
 
 	/*
 	 * Returns the current memory map
 	 */
-
 	efi_status (*get_memory_map)
 	(
 		uint64_t *		memory_map_size,
@@ -364,13 +380,21 @@ typedef struct efi_boot_services {
 		uint32_t *		descriptor_version
 	);
 	
-	void *			allocate_pool;
+	/*
+	 * Allocate memory pool
+	 */
+	efi_status (*allocate_pool)
+	(
+		efi_memory_type		pool_type,
+		uint64_t		size,
+		void **			buffer
+	);
+
 	void *			free_pool;
 
 	/*
 	 * Event and timer services
 	 */
-
 	void *			create_event;
 	void *			set_timer;
 	void *			wait_for_event;
@@ -381,7 +405,6 @@ typedef struct efi_boot_services {
 	/*
 	 * Protocol handler services
 	 */
-
 	void *			install_protocol_interface;
 	void *			reinstall_protocol_interface;
 	void *			uninstall_protocol_interface;
@@ -395,7 +418,6 @@ typedef struct efi_boot_services {
 	/*
 	 * Image services
 	 */
-
 	void *			load_image;
 	void *			start_image;
 	void *			exit;
@@ -405,7 +427,6 @@ typedef struct efi_boot_services {
 	/*
 	 * Miscellaneous services
 	 */
-
 	void *			get_next_monotonic_count;
 	void *			stall;
 	void *			set_watchdog_timer;
@@ -413,7 +434,6 @@ typedef struct efi_boot_services {
 	/*
 	 * Driver support services
 	 */
-
 	void *			connect_controller;
 	void *			disconnect_controller;
 
@@ -424,7 +444,6 @@ typedef struct efi_boot_services {
 	/*
 	 * Opens requested protocol against supplied handle
 	 */
-
 	efi_status (*open_protocol)
 	(
 		efi_handle 	handle,
@@ -441,7 +460,6 @@ typedef struct efi_boot_services {
 	/*
 	 * Library services
 	 */
-
 	void *			protocols_per_handle;
 	void *			locate_handle_buffer;
 	void *			locate_protocol;
@@ -451,13 +469,11 @@ typedef struct efi_boot_services {
 	/*
 	 * 32-bit CRC services
 	 */
-
 	void *			calculate_crc32;
 
 	/*
 	 * Miscellaneous services
 	 */
-
 	void *			copy_mem;
 	void *			set_mem;
 	void *			create_event_ex;
@@ -467,13 +483,11 @@ typedef struct efi_boot_services {
 /*
  * Basic UEFI terminal output
  */
-
 typedef struct efi_simple_text_output_protocol {
 
 	/*
 	 * Resets text output
 	 */
-
 	efi_status (*reset)
 	(
 		struct efi_simple_text_output_protocol *this,
@@ -483,7 +497,6 @@ typedef struct efi_simple_text_output_protocol {
 	/*
 	 * Writes a string to the output
 	 */
-
 	efi_status (*output_string)
 	(
 		struct efi_simple_text_output_protocol *this,
@@ -497,7 +510,6 @@ typedef struct efi_simple_text_output_protocol {
 	/*
 	 * Sets background and foreground colors
 	 */
-
 	efi_status (*set_attribute)
 	(
 		struct efi_simple_text_output_protocol *this,
@@ -507,7 +519,6 @@ typedef struct efi_simple_text_output_protocol {
 	/*
 	 * Clears the screen
 	 */
-
 	efi_status (*clear_screen)
 	(
 		struct efi_simple_text_output_protocol *this
@@ -522,7 +533,6 @@ typedef struct efi_simple_text_output_protocol {
 /*
  * Pointers to boot and run time services and other tables
  */
-
 typedef struct efi_system_table {
 
 	efi_table_header			hdr;

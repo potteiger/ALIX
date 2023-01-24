@@ -32,16 +32,44 @@
 
 #define clear() systab->console_out->clear_screen(systab->console_out)
 
+/*
+ * String table of memory types
+ */
+static const uint16_t *memory_type[] = {
+	[efi_reserved_memory_type]	= L"Reserved",
+	[efi_loader_code]		= L"Loader code",
+	[efi_loader_data]		= L"Loader data",
+	[efi_boot_services_code]	= L"Boot services code",
+	[efi_boot_services_data]	= L"Boot services data",
+	[efi_runtime_services_code]	= L"Runtime services code",
+	[efi_runtime_services_data]	= L"Runtime services data",
+	[efi_conventional_memory]	= L"Conventional memory",
+	[efi_unusable_memory]		= L"Unusable memory",
+	[efi_ACPI_reclaim_memory]	= L"ACPI reclaim memory",
+	[efi_ACPI_memoryNVS]		= L"ACPI memory NVS",
+	[efi_memory_mapped_IO]		= L"Memory mapped I/O",
+	[efi_memory_mapped_IO_port_space]= L"Memory mapped I/O port space",
+	[efi_pal_code]			= L"Pal code",
+	[efi_persistent_memory]		= L"Persistent memory",
+	[efi_unaccepted_memory_type]	= L"Unaccepted memory type",
+	[efi_max_memory_type]		= L"Max memory type"
+
+};
+
 static efi_system_table *		systab;		/* EFI system table */
 static efi_boot_services *		boot_services;	/* boot services */
 static efi_loaded_image_protocol *	img_protocol;	/* our EFI app image */
 static efi_file_protocol *		filesystem;	/* root of filesystem */
 static efi_file_protocol *		kernel_file;	/* kernel file */
 
+static efi_memory_descriptor *		mmap;		/* memory map */
+static uint64_t				mmap_size;
+static uint64_t				mdesc_size;
+static uint64_t				mkey;
+
 /*
  * Prints a unsigned 64-bit value in hexadecimal (a memory address?)
  */
-
 static void
 hprint(uint64_t addr)
 {
@@ -67,9 +95,8 @@ hprint(uint64_t addr)
 /*
  * Return the size of the kernel on boot media
  */
-
 static uint64_t
-kernel_size()
+ksize()
 {
 	uint8_t buff[256];
 	efi_status s;
@@ -92,11 +119,84 @@ kernel_size()
 }
 
 /*
+ * Retrieve memory map from EFI
+ */
+static efi_status
+getmmap()
+{
+	efi_status s;
+	uint32_t ver;
+	
+	/*
+	 * Call get_memory_map() with bufsz 0 to get the required size
+	 */
+
+	mmap_size = 0;
+	mmap = 0;
+	s = boot_services->get_memory_map(
+		&mmap_size,
+		mmap,
+		&mkey,
+		&mdesc_size,
+		&ver
+	);
+
+	/*
+	 * Allocate a pool large enough for the memory map (+2 descriptor sizes
+	 * too account for this allocation)
+	 */
+	mmap_size += mdesc_size * 2;
+	boot_services->allocate_pool(
+		efi_loader_data,
+		mmap_size,
+		(void **) &mmap
+	);
+
+	/*
+	 * Now call for a memory map with everything we need
+	 */
+	s = boot_services->get_memory_map(
+		&mmap_size,
+		mmap,
+		&mkey,
+		&mdesc_size,
+		&ver
+	);
+
+	hprint(s);
+
+	return s;
+}
+
+/*
+ * Print contents of mmap to console
+ */
+static efi_status
+printmmap()
+{
+	efi_memory_descriptor *ds;
+
+	for (ds = mmap; (uint64_t) ds < ((uint64_t) mmap +  mmap_size);
+	ds = (efi_memory_descriptor *)((uint64_t) ds + mdesc_size)) {
+		print(L"\r\nMemory type: ");
+		print(memory_type[ds->type]);
+		print(L"\r\nPhysical start: ");
+		hprint(ds->physical_start);
+		print(L"\r\nVirtual start: ");
+		hprint(ds->virtual_start);
+		print(L"\r\nNumber of pages: ");
+		hprint(ds->number_of_pages);
+		print(L"\r\n");
+	}
+
+	return 0;
+}
+
+/*
  * Access boot device filesystem and attempt to locate kernel
  */
-
 static efi_status
-kernel_find(efi_handle img_handle)
+kfind(efi_handle img_handle)
 {
 	efi_status s;
 	efi_guid guid;
@@ -107,7 +207,6 @@ kernel_find(efi_handle img_handle)
 	/*
 	 * Open loaded image protocol to obtain the device handle
 	 */
-
 	guid = EFI_LOADED_IMAGE_PROTOCOL_GUID;
 	s = boot_services->open_protocol(
 		img_handle,
@@ -125,7 +224,6 @@ kernel_find(efi_handle img_handle)
 	/*
 	 * Open simple filesystem protocol on the device we were booted from
 	 */
-
 	guid = EFI_SIMPLE_FILE_SYSTEM_PROTOCOL_GUID;
 	s = boot_services->open_protocol(
 		devhandle,
@@ -142,7 +240,6 @@ kernel_find(efi_handle img_handle)
 	/*
 	 * Open the volume to obtain the file protocol
 	 */
-
 	s = sfsp->open_volume(sfsp, &filesystem);
 
 	if (s != EFI_SUCCESS)
@@ -154,7 +251,6 @@ kernel_find(efi_handle img_handle)
 	/*
 	 * Open file
 	 */
-
 	s = filesystem->open(
 		filesystem,
 		&kernel_file,
@@ -172,7 +268,6 @@ kernel_find(efi_handle img_handle)
 /*
  * x86-64 EFI boot entry point
  */
-
 efi_status
 bootx64(efi_handle img_handle, efi_system_table *st)
 {
@@ -185,18 +280,32 @@ bootx64(efi_handle img_handle, efi_system_table *st)
 	clear();
 	print(L"Bone boot...\r\n");
 
-	if ((s = kernel_find(img_handle)) != EFI_SUCCESS) {
+	/*
+	 * Locate kernel and it's size on boot media
+	 */
+	if ((s = kfind(img_handle)) != EFI_SUCCESS) {
 		print(L"No kernel\r\n");
 		return 0;
 	}
 
 	print(L"Located kernel on boot device...\r\n");
 
-	ksz = kernel_size();
+	ksz = ksize();
 
 	print(L"Size of kernel: ");
 	hprint(ksz);
 	print(L"\r\n");
+
+	/*
+	 * Retrieve our memory map
+	 */
+	if (getmmap() != EFI_SUCCESS) {
+		print(L"Cannot obtain memory map from EFI\r\n");
+		return 0;
+	}
+
+	print(L"Memory Map\r\n----------");
+	printmmap();
 
 	for(;;);
 
