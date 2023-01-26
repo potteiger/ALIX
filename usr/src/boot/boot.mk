@@ -14,6 +14,7 @@ BOOT=boot/EFI/BOOT/BOOTX64.EFI
 boot: $(BOOT)
 
 $(BOOT): $(BOOT-SRC)/x64/boot.o $(BOOT-SRC)/x64/boots.o
+	mkdir -p boot/EFI/BOOT
 	$(BOOT-LD) $(BOOT-LDFLAGS) -entry:boots $(BOOT-SRC)/x64/boot.o \
 		$(BOOT-SRC)/x64/boots.o -out:$(BOOT)
 
