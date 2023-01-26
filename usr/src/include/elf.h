@@ -19,7 +19,6 @@
 /*
  * Basic integer types
  */
-
 typedef uint64_t        Elf64_Addr;     /* unsigned program address */
 typedef uint64_t        Elf64_Off;      /* unsigned file offset */
 typedef uint16_t        Elf64_Half;     /* unsigned medium integer */
@@ -31,7 +30,6 @@ typedef int64_t         Elf64_Sxword;   /* signed long integer */
 /*
  * Main file header
  */
-
 typedef struct {
 
 	unsigned char   e_ident[16];    /* ELF identification */
@@ -113,7 +111,6 @@ typedef struct {
 /*
  * Section header entries
  */
-
 typedef struct {
 	Elf64_Word      sh_name;        /* section name */
 	Elf64_Word      sh_type;        /* section type */
@@ -164,7 +161,6 @@ typedef struct {
 /*
  * Symbol table entry
  */
-
 typedef struct {
 	Elf64_Word      st_name;        /* symbol name */
 	unsigned char   st_info;        /* type and binding attributes */
@@ -197,7 +193,6 @@ typedef struct {
 /*
  * Relocation entries
  */
-
 typedef struct {
 	Elf64_Addr      r_offset;       /* address of reference */
 	Elf64_Xword     r_info;         /* symbol index and type of reloc */
@@ -219,7 +214,6 @@ typedef struct {
 /*
  * Program header table entry (segment)
  */
-
 typedef struct {
 	Elf64_Word      p_type;         /* type of segment */
 	Elf64_Word      p_flags;        /* segment attributes */

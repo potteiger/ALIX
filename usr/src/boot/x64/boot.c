@@ -1,5 +1,5 @@
 /*
- * `bootx64.c` -- x86-64 EFI boot
+ * `boot.c` -- x86-64 EFI boot
  * Copyright (c) 2023 Alan Potteiger
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
@@ -10,7 +10,7 @@
 #include <stdint.h>
 
 #include <elf.h>
-#include <boot/efi.h>
+#include <efi.h>
 
 /*
  * UEFI is god awful (see further rant in header file) so I'm going to try my
@@ -56,11 +56,12 @@ static const uint16_t *memory_type[] = {
 
 };
 
-static efi_system_table *		systab;		/* EFI system table */
-static efi_boot_services *		boot_services;	/* boot services */
-static efi_loaded_image_protocol *	img_protocol;	/* our EFI app image */
-static efi_file_protocol *		filesystem;	/* root of filesystem */
-static efi_file_protocol *		kernel_file;	/* kernel file */
+efi_system_table *		systab;		/* EFI system table */
+efi_boot_services *		boot_services;	/* boot services */
+efi_loaded_image_protocol *	img_protocol;	/* our EFI app image */
+efi_file_protocol *		filesystem;	/* root of filesystem */
+
+efi_file_protocol *		kernel_file;	/* kernel file */
 
 static efi_memory_descriptor *		mmap;		/* memory map */
 static uint64_t				mmap_size;
@@ -71,7 +72,7 @@ static uint64_t				mkey;
  * Prints a unsigned 64-bit value in hexadecimal (a memory address?)
  */
 static void
-hprint(uint64_t addr)
+printh(uint64_t addr)
 {
 	static int16_t hex[17];
 	uint64_t work;
@@ -130,7 +131,6 @@ getmmap()
 	/*
 	 * Call get_memory_map() with bufsz 0 to get the required size
 	 */
-
 	mmap_size = 0;
 	mmap = 0;
 	s = boot_services->get_memory_map(
@@ -163,33 +163,7 @@ getmmap()
 		&ver
 	);
 
-	hprint(s);
-
 	return s;
-}
-
-/*
- * Print contents of mmap to console
- */
-static efi_status
-printmmap()
-{
-	efi_memory_descriptor *ds;
-
-	for (ds = mmap; (uint64_t) ds < ((uint64_t) mmap +  mmap_size);
-	ds = (efi_memory_descriptor *)((uint64_t) ds + mdesc_size)) {
-		print(L"\r\nMemory type: ");
-		print(memory_type[ds->type]);
-		print(L"\r\nPhysical start: ");
-		hprint(ds->physical_start);
-		print(L"\r\nVirtual start: ");
-		hprint(ds->virtual_start);
-		print(L"\r\nNumber of pages: ");
-		hprint(ds->number_of_pages);
-		print(L"\r\n");
-	}
-
-	return 0;
 }
 
 /*
@@ -254,7 +228,7 @@ kfind(efi_handle img_handle)
 	s = filesystem->open(
 		filesystem,
 		&kernel_file,
-		(int16_t *) L"bone.elf",
+		(int16_t *) L"bonex64.sys",
 		EFI_FILE_MODE_READ,
 		0
 	);
@@ -269,7 +243,7 @@ kfind(efi_handle img_handle)
  * x86-64 EFI boot entry point
  */
 efi_status
-bootx64(efi_handle img_handle, efi_system_table *st)
+boot(efi_handle img_handle, efi_system_table *st, void *pagedir)
 {
 	efi_status 			s;
 	uint64_t 			ksz;
@@ -293,7 +267,7 @@ bootx64(efi_handle img_handle, efi_system_table *st)
 	ksz = ksize();
 
 	print(L"Size of kernel: ");
-	hprint(ksz);
+	printh(ksz);
 	print(L"\r\n");
 
 	/*
@@ -304,8 +278,10 @@ bootx64(efi_handle img_handle, efi_system_table *st)
 		return 0;
 	}
 
-	print(L"Memory Map\r\n----------");
-	printmmap();
+	/*
+	 * Print the address of the page directory
+	 */
+	printh((uint64_t) pagedir);
 
 	for(;;);
 
