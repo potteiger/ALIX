@@ -13,9 +13,8 @@
 #include <efi.h>
 
 /*
- * This is a straight forward kernel loader. We perform a series of reads on the
- * executable (via EFI) to obtain necessary headers and other information
- * necessary to allocate pages for all segments and load them.
+ * Second phase of bootloader
+ * - 
  */
 
 #define print(string) systab->console_out->output_string(systab->console_out,\
@@ -25,27 +24,27 @@
  * From boot.c
  */
 extern efi_system_table *               systab;         /* EFI system table */
-extern efi_boot_services *              boot_services;  /* boot services */
-extern efi_file_protocol *              kernel_file;    /* kernel file handle */
+extern efi_boot_services *              bootsrv;        /* boot services */
+extern efi_file_protocol *              kfile;          /* kernel file handle */
 extern void printh(uint64_t);
 
 /*
  * ELF header structures used for parsing
  */
 static Elf64_Ehdr ehdr;         /* Elf header */
-static Elf64_Phdr *phdrs;        /* Program headers */
+static Elf64_Phdr *phdrs;       /* Program headers */
 
 /*
  * Read the program headers
  */
 static int
-read_phdrs()
+read_phdrs(void)
 {
         efi_status s;
         uint64_t bufsz;
 
         bufsz = ehdr.e_phentsize * ehdr.e_phnum;
-        s = boot_services->allocate_pool(
+        s = bootsrv->allocate_pool(
                 efi_loader_data,
                 bufsz,
                 (void **) &phdrs
@@ -56,9 +55,9 @@ read_phdrs()
                 return 1;
         }
 
-        kernel_file->set_position(kernel_file, ehdr.e_phoff);
-        s = kernel_file->read(
-                kernel_file,
+        kfile->set_position(kfile, ehdr.e_phoff);
+        s = kfile->read(
+                kfile,
                 &bufsz,
                 phdrs
         );
@@ -75,14 +74,14 @@ read_phdrs()
  * Read the Elf header and perform potential checks
  */
 static int
-read_ehdr()
+read_ehdr(void)
 {
         efi_status s;
         uint64_t bufsz;
 
         bufsz = sizeof(Elf64_Ehdr);
-        s = kernel_file->read(
-                kernel_file,
+        s = kfile->read(
+                kfile,
                 &bufsz,
                 &ehdr
         );
@@ -120,8 +119,8 @@ read_ehdr()
 /*
  * Loader driver
  */
-int 
-load()
+efi_status 
+load(void)
 {
         efi_status s;
         uint64_t bufsz;

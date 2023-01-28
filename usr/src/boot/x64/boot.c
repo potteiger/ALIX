@@ -12,49 +12,28 @@
 #include <elf.h>
 #include <efi.h>
 
+/*
+ * First phase of bootloader
+ * - Accepts EFI data structures and sets them up for the loader
+ * - Verifies kernel is on boot media and obtains a EFI file handle for it
+ * - enters load phase
+ */
+
 #define print(string) systab->console_out->output_string(systab->console_out,\
 						(int16_t *) string)
 
 #define clear() systab->console_out->clear_screen(systab->console_out)
 
-/*
- * String table of memory types
- */
-static const uint16_t *memory_type[] = {
-	[efi_reserved_memory_type]	= L"Reserved",
-	[efi_loader_code]		= L"Loader code",
-	[efi_loader_data]		= L"Loader data",
-	[efi_boot_services_code]	= L"Boot services code",
-	[efi_boot_services_data]	= L"Boot services data",
-	[efi_runtime_services_code]	= L"Runtime services code",
-	[efi_runtime_services_data]	= L"Runtime services data",
-	[efi_conventional_memory]	= L"Conventional memory",
-	[efi_unusable_memory]		= L"Unusable memory",
-	[efi_ACPI_reclaim_memory]	= L"ACPI reclaim memory",
-	[efi_ACPI_memoryNVS]		= L"ACPI memory NVS",
-	[efi_memory_mapped_IO]		= L"Memory mapped I/O",
-	[efi_memory_mapped_IO_port_space]= L"Memory mapped I/O port space",
-	[efi_pal_code]			= L"Pal code",
-	[efi_persistent_memory]		= L"Persistent memory",
-	[efi_unaccepted_memory_type]	= L"Unaccepted memory type",
-	[efi_max_memory_type]		= L"Max memory type"
-
-};
-
 efi_system_table *		systab;		/* EFI system table */
-efi_boot_services *		boot_services;	/* boot services */
-efi_loaded_image_protocol *	img_protocol;	/* our EFI app image */
-efi_file_protocol *		filesystem;	/* root of filesystem */
+efi_boot_services *		bootsrv;	/* boot services */
+efi_loaded_image_protocol *	imgpro;		/* our EFI app image */
+efi_file_protocol *		filesys;	/* root of filesystem */
+efi_file_protocol *		kfile;		/* kernel file handle */
 
-efi_file_protocol *		kernel_file;	/* kernel file */
-
-static efi_memory_descriptor *		mmap;		/* memory map */
-static uint64_t				mmap_size;
-static uint64_t				mdesc_size;
-static uint64_t				mkey;
-
-/* load.c */
-extern int load();
+/*
+ * Enter load phase in `load.c`
+ */
+extern efi_status load(void);
 
 /*
  * Prints a unsigned 64-bit value in hexadecimal (a memory address?)
@@ -82,60 +61,8 @@ printh(uint64_t addr)
 }
 
 /*
- * Retrieve memory map from EFI
- */
-static int
-getmmap()
-{
-	efi_status s;
-	uint32_t ver;
-	
-	/*
-	 * Call get_memory_map() with bufsz 0 to get the required size
-	 */
-	mmap_size = 0;
-	mmap = 0;
-	s = boot_services->get_memory_map(
-		&mmap_size,
-		mmap,
-		&mkey,
-		&mdesc_size,
-		&ver
-	);
-
-	/*
-	 * Allocate a pool large enough for the memory map (+2 descriptor sizes
-	 * to account for this allocation)
-	 */
-	mmap_size += mdesc_size * 2;
-	s = boot_services->allocate_pool(
-		efi_loader_data,
-		mmap_size,
-		(void **) &mmap
-	);
-
-	if (s != EFI_SUCCESS)
-		return 1;
-
-	/*
-	 * Now call for a memory map with everything we need
-	 */
-	s = boot_services->get_memory_map(
-		&mmap_size,
-		mmap,
-		&mkey,
-		&mdesc_size,
-		&ver
-	);
-
-	if (s != EFI_SUCCESS)
-		return 1;
-
-	return 0;
-}
-
-/*
  * Access boot device filesystem and attempt to locate kernel
+ * Leaves file handle in `kfile` for the loader
  */
 static int
 kfind(efi_handle img_handle)
@@ -150,15 +77,15 @@ kfind(efi_handle img_handle)
 	 * Open loaded image protocol to obtain the device handle
 	 */
 	guid = EFI_LOADED_IMAGE_PROTOCOL_GUID;
-	s = boot_services->open_protocol(
+	s = bootsrv->open_protocol(
 		img_handle,
 		&guid,
-		(void **) &img_protocol,
+		(void **) &imgpro,
 		img_handle,
 		0,
 		EFI_OPEN_PROTOCOL_BY_HANDLE_PROTOCOL
 	);
-	devhandle = img_protocol->device_handle;
+	devhandle = imgpro->device_handle;
 
 	if (s != EFI_SUCCESS)
 		return 1;
@@ -167,7 +94,7 @@ kfind(efi_handle img_handle)
 	 * Open simple filesystem protocol on the device we were booted from
 	 */
 	guid = EFI_SIMPLE_FILE_SYSTEM_PROTOCOL_GUID;
-	s = boot_services->open_protocol(
+	s = bootsrv->open_protocol(
 		devhandle,
 		&guid,
 		(void **) &sfsp,
@@ -182,8 +109,7 @@ kfind(efi_handle img_handle)
 	/*
 	 * Open the volume to obtain the file protocol
 	 */
-	s = sfsp->open_volume(sfsp, &filesystem);
-
+	s = sfsp->open_volume(sfsp, &filesys);
 	if (s != EFI_SUCCESS)
 		return 1;
 	print(L"Accessed boot device...\r\n");
@@ -191,9 +117,9 @@ kfind(efi_handle img_handle)
 	/*
 	 * Open file
 	 */
-	s = filesystem->open(
-		filesystem,
-		&kernel_file,
+	s = filesys->open(
+		filesys,
+		&kfile,
 		(int16_t *) L"bonex64.sys",
 		EFI_FILE_MODE_READ,
 		0
@@ -214,7 +140,7 @@ boot(efi_handle img_handle, efi_system_table *st, void *pagedir)
 	int s;
 
 	systab = st;
-	boot_services = systab->boot_services;
+	bootsrv = systab->boot_services;
 
 	clear();
 	print(L"Bone boot...\r\n");
@@ -227,20 +153,8 @@ boot(efi_handle img_handle, efi_system_table *st, void *pagedir)
 	print(L"Located kernel on boot device...\r\n");
 
 	/*
-	 * Attempt to load kernel into memory
+	 * Enter load phase (and hopefully never return)
 	 */
-	s = load();
-	if (s != 0)
-		print(L"Failed to load kernel\r\n");
-
-	/*
-	 * Retrieve our memory map
-	 */
-	if (getmmap() != 0)
-		print(L"Cannot obtain memory map from EFI\r\n");
-
-	for(;;);
-
-	return EFI_SUCCESS;
+	return load();
 }
 
