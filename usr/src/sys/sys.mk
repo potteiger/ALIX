@@ -1,11 +1,16 @@
 SYS-SRC=usr/src/sys
 SYS-CC=clang
 SYS-CFLAGS=-Iusr/src/include \
-	  -target x86_64-pc-none-elf \
+	  -target x86_64-elf \
+	  -static \
 	  -ffreestanding \
 	  -fno-stack-protector \
+	  -fno-pic \
 	  -mno-red-zone \
-	  -nostdinc
+	  -nostdinc \
+	  -mabi=sysv \
+	  -mcmodel=kernel
+
 SYS-TGT=boot/bonex64.sys
 
 sys: $(SYS-TGT)
