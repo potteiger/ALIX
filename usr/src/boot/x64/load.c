@@ -33,7 +33,43 @@ extern void printh(uint64_t);
  * ELF header structures used for parsing
  */
 static Elf64_Ehdr ehdr;         /* Elf header */
-static Elf64_Phdr phdr;         /* A program (segment) header */
+static Elf64_Phdr *phdrs;        /* Program headers */
+
+/*
+ * Read the program headers
+ */
+static int
+read_phdrs()
+{
+        efi_status s;
+        uint64_t bufsz;
+
+        bufsz = ehdr.e_phentsize * ehdr.e_phnum;
+        s = boot_services->allocate_pool(
+                efi_loader_data,
+                bufsz,
+                (void **) &phdrs
+        );
+
+        if (s != EFI_SUCCESS) {
+                print(L"Failed pool allocation\r\n");
+                return 1;
+        }
+
+        kernel_file->set_position(kernel_file, ehdr.e_phoff);
+        s = kernel_file->read(
+                kernel_file,
+                &bufsz,
+                phdrs
+        );
+
+        if (s != EFI_SUCCESS) {
+                print(L"Failed read\r\n");
+                return 1;
+        }
+
+        return 0;
+}
 
 /*
  * Read the Elf header and perform potential checks
@@ -52,7 +88,7 @@ read_ehdr()
         );
 
         if (s != EFI_SUCCESS) {
-                print(L"Failed reading kernel\r\n");
+                print(L"Failed read\r\n");
                 return 1;
         }
 
@@ -87,10 +123,22 @@ read_ehdr()
 int 
 load()
 {
+        efi_status s;
+        uint64_t bufsz;
+
+        /*
+         * Read the Elf header and verify its validity
+         */
         if (read_ehdr() != 0) {
                 print(L"Invalid kernel\r\n");
                 return 1;
         }
-        
+
+        /*
+         * Read program headers to be analyzed
+         */
+        if (read_phdrs() != 0)
+                return 1;
+
         return 0;
 }

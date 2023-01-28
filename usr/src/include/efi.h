@@ -276,7 +276,7 @@ typedef struct efi_file_protocol {
 	efi_status (*set_position)
 	(
 		struct efi_file_protocol *	this,
-		uint64_t *			position
+		uint64_t 			position
 	);
 
 	efi_status (*get_info)
