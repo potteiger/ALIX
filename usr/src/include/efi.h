@@ -11,8 +11,8 @@
 #define _EFI_H_
 
 /*
- * Full UEFI API support will not be provided. Only defining what is needed or
- * is likely to be needed.
+ * Not intended to cover much of the EFI API, only what is required by this
+ * bootloader.
  *
  * UEFI Specification Version 2.10 is being referenced:
  * 	https://uefi.org/specs/UEFI/2.10/index.html
@@ -131,45 +131,6 @@ typedef enum efi_allocate_type
 	max_allocate_type
 
 } efi_allocate_type;
-
-/*
- * This API is shit. I'm going to take an opportunity to go on a small rant
- * right here for anyone reading through this header that is curious. EFI is so
- * obviously influenced by Microsoft, it's god awful. The PE/COFF executables,
- * the calling convention, FAT (though that probably was a good choice but
- * beside the point). And I haven't even gotten to the API itself yet. I can't
- * imagine how painful it must be to develop anything using Windows API's, and
- * this has given me a sneak peak. Never will I do that willingly.
- *
- * - EFI_STATUS is fucking retarded, why are status codes encoded?
- * 
- * - The naming convention is just ugly and offensive, feels like you're being
- *   screamed at the entire time you're working. Luckily, I can fix this.
- * 
- * - typedef's of function pointers??? This is is just offensive and makes all
- *   the code and examples unreadable as hell, it's stupid. I defined all of
- *   the structs containing the function pointers to avoid function pointer
- *   typedefs. Works just fine...
- * 
- * - Why is this API just spider webs of struct/function pointers? Hard as hell
- *   to follow. Some of the diagrams in the specification I thought were jokes
- *   at first, they look absolutely ridiculous. Better ways to do it.
- *
- * - Why the hell are these functions doing sooo many things? What happened to
- *   do one thing and do it well? These functions take practically 42 arguments!
- *   So many things passed by reference that really don't need to be. Why can't
- *   this operate with any sort of reverence to classic C convention or
- *   STANDARD?
- *
- * - This API just shits on the C language. I'll keep repeating this.
- *
- * - Unicode/UTF-16 strings??? This is just god awful stuff right here.
- *
- * - GUIDs... 
- *
- * - Will add more as I continue.
- *									-- Alan
- */
 
 typedef struct efi_guid {
 
@@ -311,7 +272,12 @@ typedef struct efi_file_protocol {
 
 	void *		write;
 	void *		get_position;
-	void *		set_position;
+
+	efi_status (*set_position)
+	(
+		struct efi_file_protocol *	this,
+		uint64_t *			position
+	);
 
 	efi_status (*get_info)
 	(

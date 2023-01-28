@@ -12,21 +12,6 @@
 #include <elf.h>
 #include <efi.h>
 
-/*
- * UEFI is god awful (see further rant in header file) so I'm going to try my
- * best to be here for as short of a time as possible. Use EFI as little as
- * possible. Tasks:
- *
- * - boot message
- *
- * - setup execution environment for kernel: allocate space for it, obtain a
- *   memory map, obtain a framebuffer.
- *
- * - load kernel into memory
- *
- * - gtfo: exit_boot_services() and call the kernel
- */
-
 #define print(string) systab->console_out->output_string(systab->console_out,\
 						(int16_t *) string)
 
@@ -68,10 +53,13 @@ static uint64_t				mmap_size;
 static uint64_t				mdesc_size;
 static uint64_t				mkey;
 
+/* load.c */
+extern int load();
+
 /*
  * Prints a unsigned 64-bit value in hexadecimal (a memory address?)
  */
-static void
+void
 printh(uint64_t addr)
 {
 	static int16_t hex[17];
@@ -94,35 +82,9 @@ printh(uint64_t addr)
 }
 
 /*
- * Return the size of the kernel on boot media
- */
-static uint64_t
-ksize()
-{
-	uint8_t buff[256];
-	efi_status s;
-	uint64_t bufsz;
-	efi_file_info *info;
-	efi_guid guid;
-
-	guid = EFI_FILE_INFO_ID;
-	bufsz = 256;
-
-	s = kernel_file->get_info(
-		kernel_file,
-		&guid,
-		&bufsz,
-		(void *) buff
-	);
-
-	info = (efi_file_info*) buff;
-	return info->file_size;
-}
-
-/*
  * Retrieve memory map from EFI
  */
-static efi_status
+static int
 getmmap()
 {
 	efi_status s;
@@ -143,14 +105,17 @@ getmmap()
 
 	/*
 	 * Allocate a pool large enough for the memory map (+2 descriptor sizes
-	 * too account for this allocation)
+	 * to account for this allocation)
 	 */
 	mmap_size += mdesc_size * 2;
-	boot_services->allocate_pool(
+	s = boot_services->allocate_pool(
 		efi_loader_data,
 		mmap_size,
 		(void **) &mmap
 	);
+
+	if (s != EFI_SUCCESS)
+		return 1;
 
 	/*
 	 * Now call for a memory map with everything we need
@@ -163,13 +128,16 @@ getmmap()
 		&ver
 	);
 
-	return s;
+	if (s != EFI_SUCCESS)
+		return 1;
+
+	return 0;
 }
 
 /*
  * Access boot device filesystem and attempt to locate kernel
  */
-static efi_status
+static int
 kfind(efi_handle img_handle)
 {
 	efi_status s;
@@ -193,7 +161,7 @@ kfind(efi_handle img_handle)
 	devhandle = img_protocol->device_handle;
 
 	if (s != EFI_SUCCESS)
-		return s;
+		return 1;
 
 	/*
 	 * Open simple filesystem protocol on the device we were booted from
@@ -209,7 +177,7 @@ kfind(efi_handle img_handle)
 	);
 
 	if (s != EFI_SUCCESS)
-		return s;
+		return 1;
 
 	/*
 	 * Open the volume to obtain the file protocol
@@ -217,10 +185,8 @@ kfind(efi_handle img_handle)
 	s = sfsp->open_volume(sfsp, &filesystem);
 
 	if (s != EFI_SUCCESS)
-		return s;
-
+		return 1;
 	print(L"Accessed boot device...\r\n");
-
 
 	/*
 	 * Open file
@@ -234,7 +200,7 @@ kfind(efi_handle img_handle)
 	);
 
 	if (s != EFI_SUCCESS)
-		return s;
+		return 1;
 
 	return 0;
 }
@@ -245,8 +211,7 @@ kfind(efi_handle img_handle)
 efi_status
 boot(efi_handle img_handle, efi_system_table *st, void *pagedir)
 {
-	efi_status 			s;
-	uint64_t 			ksz;
+	int s;
 
 	systab = st;
 	boot_services = systab->boot_services;
@@ -255,36 +220,27 @@ boot(efi_handle img_handle, efi_system_table *st, void *pagedir)
 	print(L"Bone boot...\r\n");
 
 	/*
-	 * Locate kernel and it's size on boot media
+	 * Locate kernel on boot media
 	 */
-	if ((s = kfind(img_handle)) != EFI_SUCCESS) {
+	if (kfind(img_handle) != 0)
 		print(L"No kernel\r\n");
-		return 0;
-	}
-
 	print(L"Located kernel on boot device...\r\n");
 
-	ksz = ksize();
-
-	print(L"Size of kernel: ");
-	printh(ksz);
-	print(L"\r\n");
+	/*
+	 * Attempt to load kernel into memory
+	 */
+	s = load();
+	if (s != 0)
+		print(L"Failed to load kernel\r\n");
 
 	/*
 	 * Retrieve our memory map
 	 */
-	if (getmmap() != EFI_SUCCESS) {
+	if (getmmap() != 0)
 		print(L"Cannot obtain memory map from EFI\r\n");
-		return 0;
-	}
-
-	/*
-	 * Print the address of the page directory
-	 */
-	printh((uint64_t) pagedir);
 
 	for(;;);
 
-	return 0;
+	return EFI_SUCCESS;
 }
 

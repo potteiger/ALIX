@@ -13,17 +13,18 @@ BOOT=boot/EFI/BOOT/BOOTX64.EFI
 
 boot: $(BOOT)
 
-$(BOOT): $(BOOT-SRC)/x64/boot.o $(BOOT-SRC)/x64/boots.o
+$(BOOT): $(BOOT-SRC)/x64/boot.o $(BOOT-SRC)/x64/load.o
 	mkdir -p boot/EFI/BOOT
-	$(BOOT-LD) $(BOOT-LDFLAGS) -entry:boots $(BOOT-SRC)/x64/boot.o \
-		$(BOOT-SRC)/x64/boots.o -out:$(BOOT)
+	$(BOOT-LD) $(BOOT-LDFLAGS) -entry:boot $(BOOT-SRC)/x64/boot.o \
+		$(BOOT-SRC)/x64/load.o -out:$(BOOT)
 
 $(BOOT-SRC)/x64/boot.o: $(BOOT-SRC)/x64/boot.c
 	$(BOOT-CC) $(BOOT-CFLAGS) -c $(BOOT-SRC)/x64/boot.c -o \
 		$(BOOT-SRC)/x64/boot.o
 
-$(BOOT-SRC)/x64/boots.o: $(BOOT-SRC)/x64/boot.s
-	nasm -f win64 $(BOOT-SRC)/x64/boot.s -o $(BOOT-SRC)/x64/boots.o
+$(BOOT-SRC)/x64/load.o: $(BOOT-SRC)/x64/load.c
+	$(BOOT-CC) $(BOOT-CFLAGS) -c $(BOOT-SRC)/x64/load.c -o \
+		$(BOOT-SRC)/x64/load.o
 
 boot-clean:
 	rm -f boot/EFI/BOOT/*
