@@ -7,9 +7,15 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
-int
+#include <stdint.h>
+
+/*
+ * Simple procedure to test loader functionality
+ */
+uint16_t *message = L"Loaded!";
+uint16_t *
 main()
 {
-	return 0;
+	return message;
 }
 
