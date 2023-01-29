@@ -33,6 +33,10 @@
 			{ 0x09576e92, 0x6d3f, 0x11d2, \
   			{ 0x8e, 0x39, 0x00, 0xa0, 0xc9, 0x69, 0x72, 0x3b }}
 
+#define EFI_GRAPHICS_OUTPUT_PROTOCOL_GUID (efi_guid) \
+			{ 0x9042a9de, 0x23dc, 0x4a38, \
+  			{ 0x96, 0xfb, 0x7a, 0xde, 0xd0, 0x80, 0x51, 0x6a }}
+
 /*
  * UEFI boolean... 1 byte value
  */
@@ -331,7 +335,7 @@ typedef struct efi_boot_services {
 	/*
 	 * Memory services
 	 */
-  	
+
 	efi_status (*allocate_pages)
 	(
 		efi_allocate_type	type,
@@ -436,7 +440,14 @@ typedef struct efi_boot_services {
 	 */
 	void *			protocols_per_handle;
 	void *			locate_handle_buffer;
-	void *			locate_protocol;
+
+	efi_status (*locate_protocol)
+	(
+		efi_guid *	protocol,
+		void *		registration,
+		void **		interface
+	);
+
 	void *			install_multiple_protocol_interfaces;
 	void *			uninstall_multiple_protocol_interfaces;
 
@@ -524,6 +535,68 @@ typedef struct efi_system_table {
 	uint64_t				configuration_table;
 
 } efi_system_table;
+
+typedef enum efi_graphics_pixel_format {
+
+	PixelRedGreenBlueReserved8BitPerColor,
+	PixelBlueGreenRedReserved8BitPerColor,
+	PixelBitMask,
+	PixelBltOnly,
+	PixelFormatMax
+
+} efi_graphics_pixel_format;
+
+typedef struct efi_pixel_bitmask {
+
+	uint32_t	RedMask;
+	uint32_t	GreenMask;
+	uint32_t	BlueMask;
+	uint32_t	ReservedMask;
+
+} efi_pixel_bitmask;
+
+typedef struct efi_graphics_output_mode_information {
+
+	uint32_t 			version;
+	uint32_t 			horizontal_resolution;
+	uint32_t 			vertical_resolution;
+	efi_graphics_pixel_format 	pixel_format;
+	efi_pixel_bitmask         	pixel_information;
+	uint32_t			pixels_per_scan_line;
+
+} efi_graphics_output_mode_information;
+
+typedef struct efi_graphics_output_protocol_mode {
+
+	uint32_t				max_mode;
+	uint32_t				mode;
+	efi_graphics_output_mode_information *	info;
+	uint64_t				size_of_info;
+	uint64_t				framebuffer_base;
+	uint64_t				framebuffer_size;
+
+} efi_graphics_output_protocol_mode;
+
+typedef struct efi_graphics_output_protocol {
+
+	efi_status (*query_mode)
+	(
+		struct efi_graphics_output_protocol *	this,
+		uint32_t				mode_number,
+		uint64_t *				sizeof_info,
+		efi_graphics_output_mode_information ** info
+	);
+
+	efi_status (*set_mode)
+	(
+		struct efi_graphics_output_protocol *	this,
+		uint32_t				mode_number
+	);
+
+	void *	blt;
+	efi_graphics_output_protocol_mode *	mode;
+
+} efi_graphics_output_protocol;
 
 #endif /* _EFI_H_ */
 

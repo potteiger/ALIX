@@ -8,6 +8,7 @@
  */
 
 #include <stdint.h>
+#include <stddef.h>
 
 #include <elf.h>
 #include <efi.h>
@@ -23,34 +24,19 @@
 /*
  * From boot.c
  */
-extern efi_system_table *               systab;         /* EFI system table */
-extern efi_boot_services *              bootsrv;        /* boot services */
-extern efi_file_protocol *              kfile;          /* kernel file handle */
-extern void *                           pagetabs;       /* new page tables */
-
+extern efi_system_table *               systab; /* EFI system table */
+extern efi_boot_services *              bootsrv;/* boot services */
+extern efi_file_protocol *              kfile;  /* kernel file handle */
+extern efi_graphics_output_protocol *   gop;    /* Graphics Output Protocol */
+extern void *                           PML4;   /* PML4 page table */
 extern void printh(uint64_t);
+extern void memzero(void *from, void *to);
 
 /*
  * ELF header structures used for parsing
  */
 static Elf64_Ehdr ehdr;         /* Elf header */
 static Elf64_Phdr *phdrs;       /* Program headers */
-
-static void *PML4;
-
-/*
- * Zero memory from and to
- */
-static void
-memzero(void *from, void *to)
-{
-        uint8_t *addr;
-
-        for (; from <= to; from++) {
-                addr = (uint8_t*) from;
-                *addr = 0;
-        }
-}
 
 /*
  * Read the program headers
@@ -155,7 +141,7 @@ loadsegs(void)
 
                 bootsrv->allocate_pages(
                         allocate_any_pages,
-                        efi_reserved_memory_type,
+                        efi_runtime_services_code,
                         pgs,
                         (uint64_t *) &page
                 );
@@ -215,17 +201,6 @@ load(void)
          */
         if (read_phdrs() != 0)
                 return 1;
-
-        /*
-         * Allocate page for PML4
-         */
-        /*bootsrv->allocate_pages(
-                allocate_any_pages,
-                efi_reserved_memory_type,
-                1,
-                &mem
-        );
-        PML4 = mem;*/
 
         loadsegs();
 
