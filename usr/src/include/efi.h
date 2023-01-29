@@ -331,7 +331,15 @@ typedef struct efi_boot_services {
 	/*
 	 * Memory services
 	 */
-	void *			allocate_pages;
+  	
+	efi_status (*allocate_pages)
+	(
+		efi_allocate_type	type,
+		efi_memory_type 	memory_type,
+		uint64_t		pages,
+		uint64_t *		memory
+	);
+
 	void *			free_pages;
 
 	/*

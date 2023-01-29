@@ -29,6 +29,7 @@ efi_boot_services *		bootsrv;	/* boot services */
 efi_loaded_image_protocol *	imgpro;		/* our EFI app image */
 efi_file_protocol *		filesys;	/* root of filesystem */
 efi_file_protocol *		kfile;		/* kernel file handle */
+void *				pagetabs;	/* new page tables */
 
 /*
  * Enter load phase in `load.c`
@@ -135,7 +136,7 @@ kfind(efi_handle img_handle)
  * x86-64 EFI boot entry point
  */
 efi_status
-boot(efi_handle img_handle, efi_system_table *st, void *pagedir)
+boot(efi_handle img_handle, efi_system_table *st)
 {
 	int s;
 
@@ -148,8 +149,10 @@ boot(efi_handle img_handle, efi_system_table *st, void *pagedir)
 	/*
 	 * Locate kernel on boot media
 	 */
-	if (kfind(img_handle) != 0)
+	if (kfind(img_handle) != 0) {
 		print(L"No kernel\r\n");
+		return 0;
+	}
 	print(L"Located kernel on boot device...\r\n");
 
 	/*

@@ -26,6 +26,8 @@
 extern efi_system_table *               systab;         /* EFI system table */
 extern efi_boot_services *              bootsrv;        /* boot services */
 extern efi_file_protocol *              kfile;          /* kernel file handle */
+extern void *                           pagetabs;       /* new page tables */
+
 extern void printh(uint64_t);
 
 /*
@@ -33,6 +35,22 @@ extern void printh(uint64_t);
  */
 static Elf64_Ehdr ehdr;         /* Elf header */
 static Elf64_Phdr *phdrs;       /* Program headers */
+
+static void *PML4;
+
+/*
+ * Zero memory from and to
+ */
+static void
+memzero(void *from, void *to)
+{
+        uint8_t *addr;
+
+        for (; from <= to; from++) {
+                addr = (uint8_t*) from;
+                *addr = 0;
+        }
+}
 
 /*
  * Read the program headers
@@ -116,6 +134,64 @@ read_ehdr(void)
         return 0;
 }
 
+static int
+loadsegs(void)
+{
+        void *page;
+        uint64_t pgs, sz;
+        int i;
+
+        for (i = 0; i < ehdr.e_phnum; i++) {
+                if (phdrs[i].p_type != PT_LOAD)
+                        continue;
+
+                /*
+                 * Allocate the amount of pages we need to load this segment
+                 */
+                if (phdrs[i].p_memsz < 0x1000)
+                        pgs = 1;
+                else
+                        pgs = phdrs[i].p_memsz / 0x1000;
+
+                bootsrv->allocate_pages(
+                        allocate_any_pages,
+                        efi_reserved_memory_type,
+                        pgs,
+                        (uint64_t *) &page
+                );
+                
+                /*
+                 * Save physical address in the structure, we will loop through
+                 * again later to perform final mappings
+                 */
+                phdrs[i].p_paddr = (uint64_t) page;
+
+                /*
+                 * Read segment content from file into pages if necessary
+                 */
+                if (phdrs[i].p_filesz != 0) {
+                        kfile->set_position(kfile, phdrs[i].p_offset);
+                        sz = phdrs[i].p_filesz;
+                        kfile->read(
+                                kfile,
+                                &sz,
+                                page
+                        );
+                }
+
+                /*
+                 * Zero unused memory if necessary
+                 */
+                if (phdrs[i].p_memsz > phdrs[i].p_filesz) {
+                        memzero(page + phdrs[i].p_filesz + 1,
+                                page + (pgs * 0x1000));
+                }
+
+        }
+
+        return 0;
+}
+
 /*
  * Loader driver
  */
@@ -124,6 +200,7 @@ load(void)
 {
         efi_status s;
         uint64_t bufsz;
+        uint64_t mem;
 
         /*
          * Read the Elf header and verify its validity
@@ -138,6 +215,21 @@ load(void)
          */
         if (read_phdrs() != 0)
                 return 1;
+
+        /*
+         * Allocate page for PML4
+         */
+        /*bootsrv->allocate_pages(
+                allocate_any_pages,
+                efi_reserved_memory_type,
+                1,
+                &mem
+        );
+        PML4 = mem;*/
+
+        loadsegs();
+
+        for(;;);
 
         return 0;
 }
