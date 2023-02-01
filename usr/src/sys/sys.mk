@@ -1,6 +1,7 @@
 SYS-SRC=usr/src/sys
 SYS-CC=clang
 SYS-CFLAGS=-Iusr/src/include \
+	  -std=c99 \
 	  -target x86_64-elf \
 	  -static \
 	  -ffreestanding \

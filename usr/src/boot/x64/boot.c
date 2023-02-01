@@ -1,5 +1,5 @@
 /*
- * `boot.c` -- x86-64 EFI boot
+ * `boot.c` -- x86-64 EFI bootloader, boot phase
  * Copyright (c) 2023 Alan Potteiger
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
@@ -17,25 +17,29 @@
 						(int16_t *) string)
 #define clear() systab->console_out->clear_screen(systab->console_out)
 
+/*
+ * Enter the load phase in `load.c`
+ */
+extern efi_status		load(void);
+
+/* EFI handles, protocols, other data structures */
 efi_system_table *		systab;		/* EFI system table */
-efi_handle 			imghand;	/* EFI app image handle */
+efi_handle 			imghan;		/* EFI app image handle */
 efi_loaded_image_protocol *	imgpro;		/* EFI image protocol inteface*/
 efi_boot_services *		bootsrv;	/* boot services */
 efi_file_protocol *		filesys;	/* root of filesystem */
 efi_file_protocol *		kfile;		/* kernel file handle */
 efi_graphics_output_protocol *	gop;		/* Graphics Output Protocol */
-uint64_t			mmap_key;	/* EFI mmap key */
-
-extern void setcr3(uintptr_t);
-extern uintptr_t getrsp();
-
-struct kargtab kargtab;
-
-extern efi_status 	load(void);	/* Enter load phase in `load.c` */
+uint64_t			mmapkey;	/* EFI mmap key */
 
 /*
- * Prints a unsigned 64-bit value in hexadecimal (a memory address?)
+ * Kernel argument table.
+ * Data and pointers required by the kernel, a pointer to this structure is
+ * passed to the kernel.
  */
+struct kargtab kargtab;
+
+/* Prints a unsigned 64-bit value in hexadecimal (memory addresses mainly) */
 void
 printh(uint64_t addr)
 {
@@ -71,9 +75,7 @@ kfind(efi_handle img_handle)
 	efi_handle devhandle;
 
 
-	/*
-	 * Open loaded image protocol to obtain the device handle
-	 */
+	/* Open loaded image protocol to obtain the device handle */
 	guid = EFI_LOADED_IMAGE_PROTOCOL_GUID;
 	s = bootsrv->open_protocol(
 		img_handle,
@@ -88,9 +90,7 @@ kfind(efi_handle img_handle)
 	if (s != EFI_SUCCESS)
 		return 1;
 
-	/*
-	 * Open simple filesystem protocol on the device we were booted from
-	 */
+	/* Open simple filesystem protocol on the device we were booted from */
 	guid = EFI_SIMPLE_FILE_SYSTEM_PROTOCOL_GUID;
 	s = bootsrv->open_protocol(
 		devhandle,
@@ -104,17 +104,13 @@ kfind(efi_handle img_handle)
 	if (s != EFI_SUCCESS)
 		return 1;
 
-	/*
-	 * Open the volume to obtain the file protocol
-	 */
+	/* Open the volume to obtain the file protocol */
 	s = sfsp->open_volume(sfsp, &filesys);
 	if (s != EFI_SUCCESS)
 		return 1;
 	print(L"Accessed boot device\r\n");
 
-	/*
-	 * Open file
-	 */
+	/* open file */
 	s = filesys->open(
 		filesys,
 		&kfile,
@@ -129,9 +125,7 @@ kfind(efi_handle img_handle)
 	return 0;
 }
 
-/*
- * Initialize Graphics Output Protocol
- */
+/* Initialize Graphics Output Protocol. */
 static int
 gopinit(void)
 {
@@ -141,9 +135,7 @@ gopinit(void)
 	efi_graphics_output_mode_information *info;
 	int i, max;
 
-	/*
-	 * Access GOP
-	 */
+	/* Access GOP */
 	guid = EFI_GRAPHICS_OUTPUT_PROTOCOL_GUID;
 	s = bootsrv->locate_protocol(
 		&guid,
@@ -163,9 +155,7 @@ gopinit(void)
 	return 0;
 }
 
-/*
- * Zero memory from and to
- */
+/* Zero memory from and to. */
 void
 memzero(uintptr_t from, uintptr_t to)
 {
@@ -174,9 +164,7 @@ memzero(uintptr_t from, uintptr_t to)
 	}
 }
 
-/*
- * Allocate requested amount of pages
- */
+/* Allocate requested amount of pages. */
 uintptr_t
 palloc(int count)
 {
@@ -197,9 +185,7 @@ palloc(int count)
 	return ptr;
 }
 
-/*
- * Retrieve the EFI memory map
- */
+/* Retrieve the EFI memory map. */
 int
 getmmap()
 {
@@ -215,7 +201,7 @@ getmmap()
 	s = bootsrv->get_memory_map(
 		&sz,
 		mmap,
-		&mmap_key,
+		&mmapkey,
 		&dsz,
 		&ver
 	);
@@ -230,7 +216,7 @@ getmmap()
 	s = bootsrv->get_memory_map(
 		&sz,
 		mmap,
-		&mmap_key,
+		&mmapkey,
 		&dsz,
 		&ver
 	);
@@ -239,53 +225,59 @@ getmmap()
 	return 0;
 }
 
-/*
- * Map virtual addy to physical addy
- */
-int
-map(uintptr_t virt, uintptr_t phys)
+/* Return next page table in hierarchy, create a new one if necessary. */
+static uint64_t *
+pagetab_next(uint64_t *currtab, uint16_t index)
 {
-	uint16_t pml4_off, pdpt_off, pd_off, pt_off;
-	uint64_t *table;
-	uint64_t work;
+	uintptr_t ptr;
+	uintptr_t page;
 
-	pml4_off = (uint16_t)((virt >> 39) & 0x1FF);
-	pdpt_off = (uint16_t)((virt >> 30) & 0x1FF);
-	pd_off   = (uint16_t)((virt >> 21) & 0x1FF);
-	pt_off   = (uint16_t)((virt >> 12) & 0x1FF);
+	ptr = (uintptr_t) currtab[index];
+	
+	/*
+	 * If entry is not occupied, we allocate and zero a table for the next
+	 * table in the hierarchy then fill the entry, sanitisze address, and
+	 * return.
+	 */
 
-	print(L"mapping: "); printh(virt); print(L"\r\n");
+	if (ptr == 0) {
+		ptr = palloc(1);
+		if (ptr == 0)
+			return NULL;
+		memzero(ptr, ptr + (0x1000));
+		currtab[index] = ptr | 3; /* Present, R/W */
+	}
+
+	/* Clear flags if present for clear address */
+	ptr = ((ptr >> 12) & 0x7FFFFFFFFF) << 12;
+	return (uint64_t *) ptr;
+}
+
+/* Map virtual addy to physical addy. */
+int
+mapaddr(uintptr_t virt, uintptr_t phys)
+{
+	uint16_t index;
+	uint64_t *table;	
 
 	table = (uint64_t *) kargtab.pml4_virt;
-	work = (((table[pml4_off] >> 12) & 0x7FFFFFFFFF) << 12);
-	if (work == 0) {
-		if ((work = (uint64_t) palloc(1)) == 0)
-			return 1;
-		memzero(work, work + 0x1000);
-		table[pml4_off] = (work | 3);
-	}
 
-	table = (uint64_t *) work;
-	work = (((table[pdpt_off] >> 12) & 0x7FFFFFFFFF) << 12);
-	if (work == 0) {
-		if ((work = (uint64_t) palloc(1)) == 0)
-			return 1;
-		memzero(work, work + 0x1000);
-		table[pdpt_off] = (work | 3);
-	}
-
-	table = (uint64_t *) work;
-	work = (((table[pd_off] >> 12) & 0x7FFFFFFFFF) << 12);
-	if (work == 0) {
-		if ((work = (uint64_t) palloc(1)) == 0)
-			return 1;
-		memzero(work, work + 0x1000);
-		table[pd_off] = (work | 3);
-	}
-
-	table = (uint64_t *) work;
-	table[pt_off] = phys | 3;
-
+	/* Descend hierarchy */
+	table = pagetab_next(table, ((virt >> 39) & 0x1FF));
+	if (table == NULL)
+		return 1;
+	table = pagetab_next(table, ((virt >> 30) & 0x1FF));
+	if (table == NULL)
+		return 1;
+	table = pagetab_next(table, ((virt >> 21) & 0x1FF));
+	if (table == NULL)
+		return 1;
+	
+	/*
+	 * Reached the page table, now set the address of the page frame with
+	 * appropriate flags.
+	 */
+	table[((virt >> 12) & 0x1FF)] = phys | 3; /* Present, R/W */
 	return 0;
 }
 
@@ -301,40 +293,36 @@ init_mappings(void)
 	uint64_t sz;
 	uint32_t i;
 
-	/*
-	 * Allocate and zero a page for the PML4 and identity map it
-	 */
+	/* Allocate and zero a page for the PML4 and identity map it */
 	kargtab.pml4_virt = palloc(1);
 	memzero(kargtab.pml4_virt, kargtab.pml4_virt + 0x1000);
-	map(kargtab.pml4_virt, kargtab.pml4_virt);
+	if (mapaddr(kargtab.pml4_virt, kargtab.pml4_virt) != 0)
+		return 1;
 
-	/*
-	 * Identity map EFI app image (this bootloader)
-	 */
+	/* Identity map EFI app image (this bootloader) */
 	base = (uintptr_t) imgpro->image_base;
 	sz = imgpro->image_size;
 	i = (sz / 0x1000)-1;
-	for (; i > 0; i--)
-		map(base + (0x1000 * i), base + (0x1000 * i));
-	map(base, base);
+	for (; i > 0; i--) {
+		if (mapaddr(base + (0x1000 * i), base + (0x1000 * i)) != 0)
+			return 1;
+	}
+	mapaddr(base, base);
 
-	/*
-	 * Identity map the framebuffer
-	 */
+	/* Identity map the framebuffer */
 	base = (uintptr_t) kargtab.fb.base;
 	sz = kargtab.fb.size;
 	i = (sz / 0x1000)-1;
-	printh(i);
-	for (; i > 0; i--)
-		map(base + (0x1000 * i), base + (0x1000 * i));
-	map(base, base);
+	for (; i > 0; i--) {
+		if (mapaddr(base + (0x1000 * i), base + (0x1000 * i)) != 0)
+			return 1;
+	}
+	mapaddr(base, base);
 
 	return 0;
 }
 
-/*
- * x86-64 EFI boot entry point
- */
+/* x86-64 EFI bootloader boot phase entry point */
 efi_status
 boot(efi_handle img_handle, efi_system_table *st)
 {
@@ -343,35 +331,30 @@ boot(efi_handle img_handle, efi_system_table *st)
 	uint64_t ptr;
 	uint32_t *fb;
 
-	imghand = img_handle;
+	imghan = img_handle;
 	systab = st;
 	bootsrv = systab->boot_services;
 
 	clear();
 	print(L"Bone boot...\r\n");
 
-	/*
-	 * Locate kernel on boot media
-	 */
+	/* Locate kernel on boot media */
 	if (kfind(img_handle) != 0) {
 		print(L"No kernel\r\n");
 		return 0;
 	}
 
-	/*
-	 * Initialize GOP
-	 */
+	/* Initialize GOP */
 	if (gopinit() != 0)
 		return 0;
 
-	/*
-	 * Perform initial page mappings required by the kernel
-	 */
-	init_mappings();
+	/* Perform initial page mappings required by the kernel */
+	if (init_mappings() != 0) {
+		print(L"Failed to perform initial memory mappings\r\n");
+		return 0;
+	}
 
-	/*
-	 * Enter load phase (and hopefully never return)
-	 */
+	/* Enter load phase (and hopefully never return) */
 	return load();
 }
 

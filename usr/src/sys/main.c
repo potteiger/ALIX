@@ -22,7 +22,7 @@ main(struct kargtab *kargtab)
          */
 	fb = (uint32_t *) kargtab->fb.base;
         for (i = 0; i < kargtab->fb.size; i++) {
-                fb[i] = 0xff3b3228;
+		fb[i] = 0xff3b3228;
         }
 
         for(;;);

@@ -1,5 +1,5 @@
 /*
- * `load.c` -- x86-64 EFI kernel loader
+ * `load.c` -- x86-64 EFI bootloader, load phase
  * Copyright (c) 2023 Alan Potteiger
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
@@ -14,42 +14,33 @@
 #include <efi.h>
 #include <sys/kargtab.h>
 
-/*
- * Second phase of bootloader
- * - 
- */
-
 #define print(string) systab->console_out->output_string(systab->console_out,\
 						(int16_t *) string)
 
-/*
- * From boot.c
- */
-extern efi_system_table *		systab; /* EFI system table */
-extern efi_handle			imghand;
+/* From `boot.c` */
+extern void 				printh(uint64_t);
+extern void 				memzero(uintptr_t from, uintptr_t to);
+extern uintptr_t			palloc(int count);
+extern int 				getmmap(void);
+extern int 				mapaddr(uintptr_t, uintptr_t);
+
+extern efi_system_table *		systab;	/* EFI system table */
+extern efi_handle			imghan; /* EFI app image handle */
 extern efi_boot_services *		bootsrv;/* boot services */
 extern efi_file_protocol *		kfile;  /* kernel file handle */
 extern efi_graphics_output_protocol *	gop;    /* Graphics Output Protocol */
-extern uint64_t				mmap_key;
-extern struct kargtab kargtab;
+extern uint64_t				mmapkey;/* EFI mmap key */
+extern struct kargtab 			kargtab;/* Kernel argument table */
 
-extern void printh(uint64_t);
-extern void memzero(uintptr_t from, uintptr_t to);
-extern uintptr_t palloc(int count);
-extern int getmmap(void);
-extern int map(uintptr_t, uintptr_t);
+/* Enter 'er' phase of bootloader, `er.s` */
+extern void 				er(uintptr_t, uintptr_t, uintptr_t,
+						uintptr_t);
 
-extern void er(uintptr_t, uintptr_t, uintptr_t, uintptr_t);
-
-/*
- * ELF header structures used for parsing
- */
+/* ELF header structures used for parsing kernel executable */
 static Elf64_Ehdr ehdr;         /* Elf header */
 static Elf64_Phdr *phdrs;       /* Program headers */
 
-/*
- * Read the program headers
- */
+/* Reads the program headers */
 static int
 read_phdrs(void)
 {
@@ -83,9 +74,7 @@ read_phdrs(void)
 	return 0;
 }
 
-/*
- * Read the Elf header and perform potential checks
- */
+/* Reads the Elf header */
 static int
 read_ehdr(void)
 {
@@ -140,9 +129,7 @@ kload(void)
 		if (phdrs[i].p_type != PT_LOAD)
 			continue;
 
-		/*
-		 * Allocate the amount of pages we need to load this segment
-		 */
+		/* Allocate the amount of pages we need to load this segment */
 		if (phdrs[i].p_memsz < 0x1000)
 			pgs = 1;
 		else
@@ -155,9 +142,7 @@ kload(void)
 			(uint64_t *) &page
 		);
 
-		/*
-		 * Read segment content from file into pages if necessary
-		 */
+		/* Read segment content from file into pages if necessary */
 		if (phdrs[i].p_filesz != 0) {
 			kfile->set_position(kfile, phdrs[i].p_offset);
 			sz = phdrs[i].p_filesz;
@@ -168,27 +153,21 @@ kload(void)
 			);
 		}
 
-		/*
-		 * Zero unused memory if necessary
-		 */
+		/* Zero unused memory if necessary */
 		if (phdrs[i].p_memsz > phdrs[i].p_filesz) {
 			memzero((uintptr_t) (page + phdrs[i].p_filesz + 1),
 				(uintptr_t)(page + (pgs * 0x1000)));
 		}
 
-		/*
-		 * Map segment
-		 */
-		map(phdrs[i].p_vaddr, (uintptr_t) page);
+		/* Map segment */
+		if (mapaddr(phdrs[i].p_vaddr, (uintptr_t) page) != 0)
+			return 1;
 
 	}
 
 	return 0;
 }
 
-/*
- * Loader driver
- */
 efi_status 
 load(void)
 {
@@ -201,38 +180,30 @@ load(void)
 	uint32_t *fb;
 	int i;
 
-	/*
-	 * Read the Elf header and verify its validity
-	 */
+	/* Read the Elf header and verify its validity */
 	if (read_ehdr() != 0) {
 		print(L"Invalid kernel\r\n");
 		return 1;
 	}
 
-	/*
-	 * Read program headers to be analyzed
-	 */
+	/* Read program headers to be analyzed */
 	if (read_phdrs() != 0)
 		return 1;
 
-	/*
-	 * Load segments into memory and map them properly
-	 */
+	/* Load segments into memory and map them properly */
 	kload();
 
-	/*
-	 * Allocate and map a stack
-	 */
+	/* Allocate and map a stack */
 	stack = palloc(1);
-	map(stack, stack);
+	if (mapaddr(stack, stack) != 0)
+		return 0;
 	stack = stack + (0x1000 - 16);
 
-	printh(stack);
-
 	getmmap();
-	bootsrv->exit_boot_services(imghand, mmap_key);
+	bootsrv->exit_boot_services(imghan, mmapkey);
 
 	er((uintptr_t) &kargtab, kargtab.pml4_virt, stack, ehdr.e_entry);
 
 	return 0;
 }
+

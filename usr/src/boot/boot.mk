@@ -1,6 +1,7 @@
 BOOT-SRC=usr/src/boot
 BOOT-CC=clang
 BOOT-CFLAGS=-Iusr/src/include \
+	-std=c99 \
        -target x86_64-unknown-windows-cygnus \
        -ffreestanding \
        -fno-stack-protector \
@@ -13,10 +14,10 @@ BOOT=boot/EFI/BOOT/BOOTX64.EFI
 
 boot: $(BOOT)
 
-$(BOOT): $(BOOT-SRC)/x64/boot.o $(BOOT-SRC)/x64/load.o $(BOOT-SRC)/x64/as.o
+$(BOOT): $(BOOT-SRC)/x64/boot.o $(BOOT-SRC)/x64/load.o $(BOOT-SRC)/x64/er.o
 	mkdir -p boot/EFI/BOOT
 	$(BOOT-LD) $(BOOT-LDFLAGS) -entry:boot $(BOOT-SRC)/x64/boot.o \
-		$(BOOT-SRC)/x64/load.o $(BOOT-SRC)/x64/as.o -out:$(BOOT)
+		$(BOOT-SRC)/x64/load.o $(BOOT-SRC)/x64/er.o -out:$(BOOT)
 
 $(BOOT-SRC)/x64/boot.o: $(BOOT-SRC)/x64/boot.c
 	$(BOOT-CC) $(BOOT-CFLAGS) -c $(BOOT-SRC)/x64/boot.c -o \
@@ -26,8 +27,8 @@ $(BOOT-SRC)/x64/load.o: $(BOOT-SRC)/x64/load.c
 	$(BOOT-CC) $(BOOT-CFLAGS) -c $(BOOT-SRC)/x64/load.c -o \
 		$(BOOT-SRC)/x64/load.o
 
-$(BOOT-SRC)/x64/as.o: $(BOOT-SRC)/x64/as.s
-	nasm -f win64 $(BOOT-SRC)/x64/as.s -o $(BOOT-SRC)/x64/as.o
+$(BOOT-SRC)/x64/er.o: $(BOOT-SRC)/x64/er.s
+	nasm -f win64 $(BOOT-SRC)/x64/er.s -o $(BOOT-SRC)/x64/er.o
 
 boot-clean:
 	rm -f boot/EFI/BOOT/*
