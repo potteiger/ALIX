@@ -10,35 +10,28 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#include <elf.h>
 #include <efi.h>
-
-/*
- * First phase of bootloader:
- * - Accept EFI data structures and sets them up for the loader
- * - Verify kernel is on boot media and obtains a EFI file handle for it
- * - Initialize GOP
- * - Enter load phase
- */
+#include <sys/kargtab.h>
 
 #define print(string) systab->console_out->output_string(systab->console_out,\
 						(int16_t *) string)
-
 #define clear() systab->console_out->clear_screen(systab->console_out)
 
 efi_system_table *		systab;		/* EFI system table */
+efi_handle 			imghand;	/* EFI app image handle */
+efi_loaded_image_protocol *	imgpro;		/* EFI image protocol inteface*/
 efi_boot_services *		bootsrv;	/* boot services */
-efi_loaded_image_protocol *	imgpro;		/* our EFI app image */
 efi_file_protocol *		filesys;	/* root of filesystem */
 efi_file_protocol *		kfile;		/* kernel file handle */
 efi_graphics_output_protocol *	gop;		/* Graphics Output Protocol */
-void *				PML4;   	/* PML4 page table */
-void *				mmap;		/* EFI memory map */
+uint64_t			mmap_key;	/* EFI mmap key */
 
-/*
- * Enter load phase in `load.c`
- */
-extern efi_status load(void);
+extern void setcr3(uintptr_t);
+extern uintptr_t getrsp();
+
+struct kargtab kargtab;
+
+extern efi_status 	load(void);	/* Enter load phase in `load.c` */
 
 /*
  * Prints a unsigned 64-bit value in hexadecimal (a memory address?)
@@ -67,7 +60,7 @@ printh(uint64_t addr)
 
 /*
  * Access boot device filesystem and attempt to locate kernel
- * Leaves file handle in `kfile` for the loader
+ * Leaves file handle in `kfile` for the load phase
  */
 static int
 kfind(efi_handle img_handle)
@@ -137,7 +130,7 @@ kfind(efi_handle img_handle)
 }
 
 /*
- * Initialize GOP
+ * Initialize Graphics Output Protocol
  */
 static int
 gopinit(void)
@@ -163,6 +156,10 @@ gopinit(void)
 	 */
 
 	print(L"Initialized GOP and retrieved framebuffer\r\n");
+
+	kargtab.fb.base = gop->mode->framebuffer_base;
+	kargtab.fb.size = gop->mode->framebuffer_size;
+
 	return 0;
 }
 
@@ -170,61 +167,167 @@ gopinit(void)
  * Zero memory from and to
  */
 void
-memzero(void *from, void *to)
+memzero(uintptr_t from, uintptr_t to)
 {
-        uint8_t *addr;
-
-        for (; from <= to; from++) {
-                addr = (uint8_t*) from;
-                *addr = 0;
-        }
+	for (; from <= to; from++) {
+		*((uint8_t*) from) = 0;
+	}
 }
 
 /*
- * Map given physical address to virtual addy
+ * Allocate requested amount of pages
  */
-static int
-map(uint64_t phys, uint64_t virt)
+uintptr_t
+palloc(int count)
 {
+	efi_status s;
+	uintptr_t ptr;
+
+	s = bootsrv->allocate_pages(
+		allocate_any_pages,
+		efi_runtime_services_data,
+		count,
+		&ptr
+	);
+	if (s != EFI_SUCCESS) {
+		print(L"Failed to allocate page\r\n");
+		return 0;
+	}
+
+	return ptr;
+}
+
+/*
+ * Retrieve the EFI memory map
+ */
+int
+getmmap()
+{
+	efi_status s;
+	uint64_t sz, dsz;
+	uint32_t ver;
+	int i;
+	efi_memory_descriptor *mmap;
+
+	mmap = NULL;
+
+	sz = 0;
+	s = bootsrv->get_memory_map(
+		&sz,
+		mmap,
+		&mmap_key,
+		&dsz,
+		&ver
+	);
+
+	sz += (dsz * 2);
+	s = bootsrv->allocate_pool(
+		efi_runtime_services_data,
+		sz,
+		(void **) &mmap
+	);
+
+	s = bootsrv->get_memory_map(
+		&sz,
+		mmap,
+		&mmap_key,
+		&dsz,
+		&ver
+	);
+
+	kargtab.memory_map = (uintptr_t) mmap;
 	return 0;
 }
 
 /*
- * Perform intitial page mapping, page table setup, and other allocation
- * Here we're setting up page tables that map everything the kernel needs except
- * the kernel itself, that will be completed in the load stage. This includes:
- * - PML4
- * - page containing the EFI memory map
- * - framebuffer
- * - ...
+ * Map virtual addy to physical addy
+ */
+int
+map(uintptr_t virt, uintptr_t phys)
+{
+	uint16_t pml4_off, pdpt_off, pd_off, pt_off;
+	uint64_t *table;
+	uint64_t work;
+
+	pml4_off = (uint16_t)((virt >> 39) & 0x1FF);
+	pdpt_off = (uint16_t)((virt >> 30) & 0x1FF);
+	pd_off   = (uint16_t)((virt >> 21) & 0x1FF);
+	pt_off   = (uint16_t)((virt >> 12) & 0x1FF);
+
+	print(L"mapping: "); printh(virt); print(L"\r\n");
+
+	table = (uint64_t *) kargtab.pml4_virt;
+	work = (((table[pml4_off] >> 12) & 0x7FFFFFFFFF) << 12);
+	if (work == 0) {
+		if ((work = (uint64_t) palloc(1)) == 0)
+			return 1;
+		memzero(work, work + 0x1000);
+		table[pml4_off] = (work | 3);
+	}
+
+	table = (uint64_t *) work;
+	work = (((table[pdpt_off] >> 12) & 0x7FFFFFFFFF) << 12);
+	if (work == 0) {
+		if ((work = (uint64_t) palloc(1)) == 0)
+			return 1;
+		memzero(work, work + 0x1000);
+		table[pdpt_off] = (work | 3);
+	}
+
+	table = (uint64_t *) work;
+	work = (((table[pd_off] >> 12) & 0x7FFFFFFFFF) << 12);
+	if (work == 0) {
+		if ((work = (uint64_t) palloc(1)) == 0)
+			return 1;
+		memzero(work, work + 0x1000);
+		table[pd_off] = (work | 3);
+	}
+
+	table = (uint64_t *) work;
+	table[pt_off] = phys | 3;
+
+	return 0;
+}
+
+/*
+ * Create initial page tables and mappings as required by the kernel.
+ * At this stage we map ourselves (the bootloader cause it contains `kargtab`),
+ * the framebuffer, and the loaded console font. 
  */
 static int
-init_mapping(void)
+init_mappings(void)
 {
-	efi_status s;
+	uintptr_t base;
+	uint64_t sz;
+	uint32_t i;
 
 	/*
-	 * Allocate a page for the new PML4 and the soon coming EFI memory map
+	 * Allocate and zero a page for the PML4 and identity map it
 	 */
-	s = bootsrv->allocate_pages(
-                allocate_any_pages,
-                efi_runtime_services_data,
-                2,
-                (uint64_t *) &PML4
-        );
-        if (s != EFI_SUCCESS) {
-        	print(L"Failed page allocation\r\n");
-        	return 1;
-        }
-	memzero(PML4, PML4 + 0x2000);
-	mmap = PML4 + 0x1000;
+	kargtab.pml4_virt = palloc(1);
+	memzero(kargtab.pml4_virt, kargtab.pml4_virt + 0x1000);
+	map(kargtab.pml4_virt, kargtab.pml4_virt);
 
 	/*
-	 * Everything we're mapping so far is allocated, now to allocate paging
-	 * tables and install maps
+	 * Identity map EFI app image (this bootloader)
 	 */
+	base = (uintptr_t) imgpro->image_base;
+	sz = imgpro->image_size;
+	i = (sz / 0x1000)-1;
+	for (; i > 0; i--)
+		map(base + (0x1000 * i), base + (0x1000 * i));
+	map(base, base);
 
-
+	/*
+	 * Identity map the framebuffer
+	 */
+	base = (uintptr_t) kargtab.fb.base;
+	sz = kargtab.fb.size;
+	i = (sz / 0x1000)-1;
+	printh(i);
+	for (; i > 0; i--)
+		map(base + (0x1000 * i), base + (0x1000 * i));
+	map(base, base);
 
 	return 0;
 }
@@ -235,8 +338,12 @@ init_mapping(void)
 efi_status
 boot(efi_handle img_handle, efi_system_table *st)
 {
-	int s;
+	int s, i;
+	uint64_t cr3;
+	uint64_t ptr;
+	uint32_t *fb;
 
+	imghand = img_handle;
 	systab = st;
 	bootsrv = systab->boot_services;
 
@@ -258,9 +365,9 @@ boot(efi_handle img_handle, efi_system_table *st)
 		return 0;
 
 	/*
-	 * Perform intitial page mapping, page table setup, and other allocation
+	 * Perform initial page mappings required by the kernel
 	 */
-	init_mapping();
+	init_mappings();
 
 	/*
 	 * Enter load phase (and hopefully never return)

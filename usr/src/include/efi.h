@@ -127,8 +127,8 @@ typedef enum efi_memory_type {
 
 } efi_memory_type;
 
-typedef enum efi_allocate_type 
-{
+typedef enum efi_allocate_type {
+	
 	allocate_any_pages,
 	allocate_max_address,
 	allocate_address,
@@ -210,7 +210,7 @@ typedef struct efi_loaded_image_protocol {
    	/*
 	 * Source location of image
 	 */
-	efi_handle				device_handle;
+	efi_handle			device_handle;
 	efi_device_path_protocol *	file_path;
 	void *				reserved;
 
@@ -400,7 +400,12 @@ typedef struct efi_boot_services {
 	void *			start_image;
 	void *			exit;
 	void *			unload_image;
-	void *			exit_boot_services;
+
+	efi_status (*exit_boot_services)
+	(
+		efi_handle 	img_handle,
+		uint64_t 	map_key
+	);
 
 	/*
 	 * Miscellaneous services

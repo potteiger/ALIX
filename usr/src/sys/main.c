@@ -9,13 +9,22 @@
 
 #include <stdint.h>
 
-/*
- * Simple procedure to test loader functionality
- */
-uint16_t *message = L"Loaded!";
-uint16_t *
-main()
+#include <sys/kargtab.h>
+
+void
+main(struct kargtab *kargtab)
 {
-	return message;
+        int i;
+        uint32_t *fb;
+
+        /*
+         * Paint screen a lovely brown
+         */
+	fb = (uint32_t *) kargtab->fb.base;
+        for (i = 0; i < kargtab->fb.size; i++) {
+                fb[i] = 0xff3b3228;
+        }
+
+        for(;;);
 }
 
