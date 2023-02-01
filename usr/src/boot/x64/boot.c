@@ -147,11 +147,11 @@ gopinit(void)
 	 * TODO: verification
 	 */
 
-	print(L"Initialized GOP and retrieved framebuffer\r\n");
-
 	kargtab.fb.base = gop->mode->framebuffer_base;
 	kargtab.fb.size = gop->mode->framebuffer_size;
 
+	print(L"Initialized GOP and retrieved framebuffer at ");
+	printh(kargtab.fb.base); print(L"\r\n");
 	return 0;
 }
 
@@ -262,22 +262,32 @@ mapaddr(uintptr_t virt, uintptr_t phys)
 
 	table = (uint64_t *) kargtab.pml4_virt;
 
+	print(L"Mapping virtual to physical:\r\n");
+	printh(virt); print(L"\r\n"); printh(phys); print(L"\r\n");
+
 	/* Descend hierarchy */
 	table = pagetab_next(table, ((virt >> 39) & 0x1FF));
-	if (table == NULL)
+	if (table == NULL) {
+		print(L"Failed mapping "); printh(virt); print(L"\r\n");
 		return 1;
+	}
 	table = pagetab_next(table, ((virt >> 30) & 0x1FF));
-	if (table == NULL)
+	if (table == NULL) {
+		print(L"Failed mapping "); printh(virt); print(L"\r\n");
 		return 1;
+	}
 	table = pagetab_next(table, ((virt >> 21) & 0x1FF));
-	if (table == NULL)
+	if (table == NULL) {
+		print(L"Failed mapping "); printh(virt); print(L"\r\n");
 		return 1;
+	}
 	
 	/*
 	 * Reached the page table, now set the address of the page frame with
 	 * appropriate flags.
 	 */
-	table[((virt >> 12) & 0x1FF)] = phys | 3; /* Present, R/W */
+	index = ((virt >> 12) & 0x1FF);
+	table[index] = phys | 3; /* Present, R/W */
 	return 0;
 }
 
@@ -307,17 +317,19 @@ init_mappings(void)
 		if (mapaddr(base + (0x1000 * i), base + (0x1000 * i)) != 0)
 			return 1;
 	}
-	mapaddr(base, base);
+	if (mapaddr(base, base) != 0)
+		return 1;
 
 	/* Identity map the framebuffer */
-	base = (uintptr_t) kargtab.fb.base;
-	sz = kargtab.fb.size;
+	base = kargtab.fb.base;
+	/*sz = kargtab.fb.size;
 	i = (sz / 0x1000)-1;
 	for (; i > 0; i--) {
 		if (mapaddr(base + (0x1000 * i), base + (0x1000 * i)) != 0)
 			return 1;
-	}
-	mapaddr(base, base);
+	}*/
+	if (mapaddr(base, base) != 0)
+		return 1;
 
 	return 0;
 }
@@ -353,6 +365,8 @@ boot(efi_handle img_handle, efi_system_table *st)
 		print(L"Failed to perform initial memory mappings\r\n");
 		return 0;
 	}
+
+	//for(;;);
 
 	/* Enter load phase (and hopefully never return) */
 	return load();
