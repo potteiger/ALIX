@@ -14,7 +14,7 @@
 void
 main(struct kargtab *kargtab)
 {
-        int i;
+        uint64_t i;
         uint32_t *fb;
 
         /*

@@ -22,6 +22,8 @@
  */
 extern efi_status		load(void);
 
+extern uintptr_t		getcr3(void);
+
 /* EFI handles, protocols, other data structures */
 efi_system_table *		systab;		/* EFI system table */
 efi_handle 			imghan;		/* EFI app image handle */
@@ -127,7 +129,7 @@ kfind(efi_handle img_handle)
 
 /* Initialize Graphics Output Protocol. */
 static int
-gopinit(void)
+init_gop(void)
 {
 	efi_guid guid;
 	efi_status s;
@@ -143,15 +145,14 @@ gopinit(void)
 		(void **) &gop
 	);
 
-	/*
-	 * TODO: verification
-	 */
+	gop->set_mode(gop, 0);
 
 	kargtab.fb.base = gop->mode->framebuffer_base;
 	kargtab.fb.size = gop->mode->framebuffer_size;
 
 	print(L"Initialized GOP and retrieved framebuffer at ");
 	printh(kargtab.fb.base); print(L"\r\n");
+	print(L"Framebuffer size: "); printh(kargtab.fb.size); print(L"\r\n");
 	return 0;
 }
 
@@ -192,7 +193,7 @@ getmmap()
 	efi_status s;
 	uint64_t sz, dsz;
 	uint32_t ver;
-	int i;
+	int i, count;
 	efi_memory_descriptor *mmap;
 
 	mmap = NULL;
@@ -220,117 +221,12 @@ getmmap()
 		&dsz,
 		&ver
 	);
+	if (s != EFI_SUCCESS) {
+		print(L"Failed to obtain memory map\r\n");
+		return 1;
+	}
 
 	kargtab.memory_map = (uintptr_t) mmap;
-	return 0;
-}
-
-/* Return next page table in hierarchy, create a new one if necessary. */
-static uint64_t *
-pagetab_next(uint64_t *currtab, uint16_t index)
-{
-	uintptr_t ptr;
-	uintptr_t page;
-
-	ptr = (uintptr_t) currtab[index];
-	
-	/*
-	 * If entry is not occupied, we allocate and zero a table for the next
-	 * table in the hierarchy then fill the entry, sanitisze address, and
-	 * return.
-	 */
-
-	if (ptr == 0) {
-		ptr = palloc(1);
-		if (ptr == 0)
-			return NULL;
-		memzero(ptr, ptr + (0x1000));
-		currtab[index] = ptr | 3; /* Present, R/W */
-	}
-
-	/* Clear flags if present for clear address */
-	ptr = ((ptr >> 12) & 0x7FFFFFFFFF) << 12;
-	return (uint64_t *) ptr;
-}
-
-/* Map virtual addy to physical addy. */
-int
-mapaddr(uintptr_t virt, uintptr_t phys)
-{
-	uint16_t index;
-	uint64_t *table;	
-
-	table = (uint64_t *) kargtab.pml4_virt;
-
-	print(L"Mapping virtual to physical:\r\n");
-	printh(virt); print(L"\r\n"); printh(phys); print(L"\r\n");
-
-	/* Descend hierarchy */
-	table = pagetab_next(table, ((virt >> 39) & 0x1FF));
-	if (table == NULL) {
-		print(L"Failed mapping "); printh(virt); print(L"\r\n");
-		return 1;
-	}
-	table = pagetab_next(table, ((virt >> 30) & 0x1FF));
-	if (table == NULL) {
-		print(L"Failed mapping "); printh(virt); print(L"\r\n");
-		return 1;
-	}
-	table = pagetab_next(table, ((virt >> 21) & 0x1FF));
-	if (table == NULL) {
-		print(L"Failed mapping "); printh(virt); print(L"\r\n");
-		return 1;
-	}
-	
-	/*
-	 * Reached the page table, now set the address of the page frame with
-	 * appropriate flags.
-	 */
-	index = ((virt >> 12) & 0x1FF);
-	table[index] = phys | 3; /* Present, R/W */
-	return 0;
-}
-
-/*
- * Create initial page tables and mappings as required by the kernel.
- * At this stage we map ourselves (the bootloader cause it contains `kargtab`),
- * the framebuffer, and the loaded console font. 
- */
-static int
-init_mappings(void)
-{
-	uintptr_t base;
-	uint64_t sz;
-	uint32_t i;
-
-	/* Allocate and zero a page for the PML4 and identity map it */
-	kargtab.pml4_virt = palloc(1);
-	memzero(kargtab.pml4_virt, kargtab.pml4_virt + 0x1000);
-	if (mapaddr(kargtab.pml4_virt, kargtab.pml4_virt) != 0)
-		return 1;
-
-	/* Identity map EFI app image (this bootloader) */
-	base = (uintptr_t) imgpro->image_base;
-	sz = imgpro->image_size;
-	i = (sz / 0x1000)-1;
-	for (; i > 0; i--) {
-		if (mapaddr(base + (0x1000 * i), base + (0x1000 * i)) != 0)
-			return 1;
-	}
-	if (mapaddr(base, base) != 0)
-		return 1;
-
-	/* Identity map the framebuffer */
-	base = kargtab.fb.base;
-	/*sz = kargtab.fb.size;
-	i = (sz / 0x1000)-1;
-	for (; i > 0; i--) {
-		if (mapaddr(base + (0x1000 * i), base + (0x1000 * i)) != 0)
-			return 1;
-	}*/
-	if (mapaddr(base, base) != 0)
-		return 1;
-
 	return 0;
 }
 
@@ -339,7 +235,7 @@ efi_status
 boot(efi_handle img_handle, efi_system_table *st)
 {
 	int s, i;
-	uint64_t cr3;
+	uintptr_t cr3;
 	uint64_t ptr;
 	uint32_t *fb;
 
@@ -357,16 +253,8 @@ boot(efi_handle img_handle, efi_system_table *st)
 	}
 
 	/* Initialize GOP */
-	if (gopinit() != 0)
+	if (init_gop() != 0)
 		return 0;
-
-	/* Perform initial page mappings required by the kernel */
-	if (init_mappings() != 0) {
-		print(L"Failed to perform initial memory mappings\r\n");
-		return 0;
-	}
-
-	//for(;;);
 
 	/* Enter load phase (and hopefully never return) */
 	return load();

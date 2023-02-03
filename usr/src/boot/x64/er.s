@@ -10,26 +10,23 @@
 bits 64
 
 global er
+global getcr3
+global prep_map
 
 section .text
 
-;
-; Final phase of bootloader. We setup the kernel stack, disable interrupts,
-; enable the new paging tables, call the kernel and pass a pointer to the
-; `kargtab` structure.
-;
-; We're transitioning from the shitty EFI/Microsoft calling convention to the
-; holy x86-64 SysV ABI. Function input is in rcx, rdx, r8, and r9. Kernel input
-; is in rdi.
-;
+prep_map:
+	mov rax, 0x80000033 ; disable bit 16 in `cr0`
+	mov cr0, rax
+
+	mov rax, cr3 ; return CR3 to find PML4
+	ret
 
 er:
-	mov rsp, r8
-	mov rbp, 0
+	mov rbp, rsp
+	mov rax, cr3
+	mov cr3, rax
 
-	cli
-	mov cr3, rdx
-
-	mov rdi, rcx
-	call r9
+	mov rdi, rdx
+	call rcx
 

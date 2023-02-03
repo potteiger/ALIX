@@ -32,13 +32,14 @@ extern efi_graphics_output_protocol *	gop;    /* Graphics Output Protocol */
 extern uint64_t				mmapkey;/* EFI mmap key */
 extern struct kargtab 			kargtab;/* Kernel argument table */
 
-/* Enter 'er' phase of bootloader, `er.s` */
-extern void 				er(uintptr_t, uintptr_t, uintptr_t,
-						uintptr_t);
+extern uintptr_t 			prep_map();
+extern void				er(uintptr_t, uintptr_t);
 
 /* ELF header structures used for parsing kernel executable */
 static Elf64_Ehdr ehdr;         /* Elf header */
 static Elf64_Phdr *phdrs;       /* Program headers */
+
+static uint64_t *pdpt;
 
 /* Reads the program headers */
 static int
@@ -118,12 +119,76 @@ read_ehdr(void)
 	return 0;
 }
 
+/* Return next page table in hierarchy, create a new one if necessary. */
+static uint64_t *
+pagetab_next(uint64_t *currtab, uint16_t index)
+{
+	uintptr_t ptr;
+	uintptr_t page;
+
+	ptr = (uintptr_t) currtab[index];
+
+	/*
+	 * If entry is not occupied, we allocate and zero a table for the next
+	 * table in the hierarchy then fill the entry, sanitisze address, and
+	 * return.
+	 */
+
+	//printh(index);
+	//print(L"\r\n");
+
+	if (ptr == 0) {
+		ptr = palloc(1);
+		if (ptr == 0)
+			return NULL;
+		memzero(ptr, ptr + (0x1000));
+		currtab[index] = ptr | 3; /* Present, R/W */
+	}
+
+	/* Clear flags if present for clear address */
+	ptr = ((ptr >> 12) & 0x7FFFFFFFFF) << 12;
+	return (uint64_t *) ptr;
+}
+
+/* Map virtual addy to physical addy. */
+int
+mapaddr(uintptr_t virt, uintptr_t phys)
+{
+	uint16_t index;
+	uint64_t *table;
+
+	table = pdpt;
+
+	table = pagetab_next(table, ((virt >> 30) & 0x1FF));
+	if (table == NULL) {
+		print(L"Failed mapping "); printh(virt); print(L"\r\n");
+		return 1;
+	}
+	table = pagetab_next(table, ((virt >> 21) & 0x1FF));
+	if (table == NULL) {
+		print(L"Failed mapping "); printh(virt); print(L"\r\n");
+		return 1;
+	}
+	
+	/*
+	 * Reached the page table, now set the address of the page frame with
+	 * appropriate flags.
+	 */
+	index = ((virt >> 12) & 0x1FF);
+	printh(phys);
+	table[index] = phys | 3; /* Present, R/W */
+	return 0;
+}
+
 static int
-kload(void)
+loadk(void)
 {
 	void *page;
 	uint64_t pgs, sz;
-	int i;
+	int i, j, loadable;
+
+	pdpt = (uint64_t *)palloc(1);
+	memzero((uintptr_t)pdpt, (uintptr_t)pdpt + 0x1000);
 
 	for (i = 0; i < ehdr.e_phnum; i++) {
 		if (phdrs[i].p_type != PT_LOAD)
@@ -141,7 +206,7 @@ kload(void)
 			pgs,
 			(uint64_t *) &page
 		);
-
+		printh((uintptr_t) page);
 		/* Read segment content from file into pages if necessary */
 		if (phdrs[i].p_filesz != 0) {
 			kfile->set_position(kfile, phdrs[i].p_offset);
@@ -159,10 +224,10 @@ kload(void)
 				(uintptr_t)(page + (pgs * 0x1000)));
 		}
 
-		/* Map segment */
-		if (mapaddr(phdrs[i].p_vaddr, (uintptr_t) page) != 0)
-			return 1;
-
+		/* Map pages in the tables we're building */
+		for (j = 0; j < pgs; j++)
+			mapaddr(phdrs[i].p_vaddr + (j * 0x1000),
+					((uintptr_t) page) + (j * 0x1000));
 	}
 
 	return 0;
@@ -172,13 +237,9 @@ efi_status
 load(void)
 {
 	efi_status s;
-	uint64_t bufsz;
-	uint64_t mem;
-	uint64_t *addy;
-	uint64_t *ptr;
-	uintptr_t stack;
-	uint32_t *fb;
-	int i;
+	uintptr_t cr3;
+	uint64_t *pml4;
+	uintptr_t val;
 
 	/* Read the Elf header and verify its validity */
 	if (read_ehdr() != 0) {
@@ -190,20 +251,23 @@ load(void)
 	if (read_phdrs() != 0)
 		return 1;
 
-	/* Load segments into memory and map them properly */
-	kload();
+	/* Allocate pages and load segments into memory */
+	loadk();
 
-	/* Allocate and map a stack */
-	stack = palloc(1);
-	if (mapaddr(stack, stack) != 0)
-		return 0;
-	stack = stack + (0x1000 - 16);
+	printh(kargtab.fb.size);
 
 	getmmap();
 	bootsrv->exit_boot_services(imghan, mmapkey);
 
-	er((uintptr_t) &kargtab, kargtab.pml4_virt, stack, ehdr.e_entry);
+	/*
+	 * Prepare to map kernel pages. Ensures bit 16 in `cr0` is off and
+	 * returns the value of `cr3` so we can access PML4.
+	 */
+	cr3 = prep_map();
+	pml4 = (uint64_t *)((cr3 >> 12) << 12);
+	pml4[((ehdr.e_entry >> 39) & 0x1FF)] = (((uintptr_t)pdpt) | 3);
 
+	er(ehdr.e_entry, (uintptr_t) &kargtab);
 	return 0;
 }
 
