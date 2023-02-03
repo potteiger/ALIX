@@ -14,15 +14,20 @@
 #include <efi.h>
 #include <sys/kargtab.h>
 
+/* EFI console macros */
 #define print(string) systab->console_out->output_string(systab->console_out,\
 						(int16_t *) string)
+#define println(string) { print(string); print(L"\r\n"); }
+#define printhln(val) { printh(val); print(L"\r\n"); }
+/* Perhaps this will be done more 'proper' later... EFI is just so damn dumb */
+#define fatal(string) { print(string); \
+			bootsrv->exit(imghan, EFI_SUCCESS, 0, NULL); }
 
 /* From `boot.c` */
-extern void 				printh(uint64_t);
+extern void 				printh(uint64_t value);
 extern void 				memzero(uintptr_t from, uintptr_t to);
 extern uintptr_t			palloc(int count);
 extern int 				getmmap(void);
-extern int 				mapaddr(uintptr_t, uintptr_t);
 
 extern efi_system_table *		systab;	/* EFI system table */
 extern efi_handle			imghan; /* EFI app image handle */
@@ -32,16 +37,40 @@ extern efi_graphics_output_protocol *	gop;    /* Graphics Output Protocol */
 extern uint64_t				mmapkey;/* EFI mmap key */
 extern struct kargtab 			kargtab;/* Kernel argument table */
 
-extern uintptr_t 			prep_map();
-extern void				er(uintptr_t, uintptr_t);
+/* From `er.s` */
+
+/*
+ * Gets access to paging, required to map the kernel.
+ * - Ensures bit #16 of `cr0` is disabled.
+ * - Returns the value of `cr3`
+ */
+extern uintptr_t 			pgaccess();
+
+/*
+ * Epilogue to the whole bootloader, the last phase.
+ * - Clears paging cache so our kernel mapping takes effect
+ * - Transitions from shitty EFI ABI to SysV ABI
+ * - setup stack
+ * - pass appropriate arguments to kernel entry and call it
+ */
+extern void				er(uintptr_t entry, uintptr_t kargtab);
+
+/*
+ * Second phase of bootloader:
+ *  - Parse Elf headers, validate the kernel object has valid fields
+ *  - Locate, load, and map loadable segments from kernel binary
+ *  - Prepare to call kernel
+ *  - Call kernel and pass it arguments
+ */
 
 /* ELF header structures used for parsing kernel executable */
 static Elf64_Ehdr ehdr;         /* Elf header */
 static Elf64_Phdr *phdrs;       /* Program headers */
 
+/* Fresh PDPT used to map the kernel (pointer later inserted in PML4) */
 static uint64_t *pdpt;
 
-/* Reads the program headers */
+/* Reads Elf program headers */
 static int
 read_phdrs(void)
 {
@@ -54,9 +83,8 @@ read_phdrs(void)
 		bufsz,
 		(void **) &phdrs
 	);
-
 	if (s != EFI_SUCCESS) {
-		print(L"Failed pool allocation\r\n");
+		fatal(L"Failed pool allocation");
 		return 1;
 	}
 
@@ -66,9 +94,8 @@ read_phdrs(void)
 		&bufsz,
 		phdrs
 	);
-
 	if (s != EFI_SUCCESS) {
-		print(L"Failed read\r\n");
+		fatal(L"Failed file read on kernel binary");
 		return 1;
 	}
 
@@ -88,9 +115,8 @@ read_ehdr(void)
 		&bufsz,
 		&ehdr
 	);
-
 	if (s != EFI_SUCCESS) {
-		print(L"Failed read\r\n");
+		fatal(L"Failed file read on kernel binary");
 		return 1;
 	}
 
@@ -101,20 +127,30 @@ read_ehdr(void)
 	if ((ehdr.e_ident[EI_MAG0] != ELFMAG0)
 	|| (ehdr.e_ident[EI_MAG1] != ELFMAG1)
 	|| (ehdr.e_ident[EI_MAG2] != ELFMAG2)
-	|| (ehdr.e_ident[EI_MAG3] != ELFMAG3))
+	|| (ehdr.e_ident[EI_MAG3] != ELFMAG3)) {
+		fatal(L"Invalid Elf magic number in kernel binary");
 		return 1;
+	}
 
-	if (ehdr.e_ident[EI_CLASS] != ELFCLASS64)
+	if (ehdr.e_ident[EI_CLASS] != ELFCLASS64) {
+		fatal(L"Invalid Elf class in kernel binary");
 		return 1;
+	}
 
-	if (ehdr.e_ident[EI_DATA] != ELFDATA2LSB)
+	if (ehdr.e_ident[EI_DATA] != ELFDATA2LSB) {
+		fatal(L"Invalid Elf data type in kernel binary");
 		return 1;
+	}
 
-	if (ehdr.e_type != ET_EXEC)
+	if (ehdr.e_type != ET_EXEC) {
+		fatal(L"Invalid Elf object type in kernel binary");
 		return 1;
+	}
 
-	if (ehdr.e_machine != EM_X86_64)
+	if (ehdr.e_machine != EM_X86_64) {
+		fatal(L"Invalid Elf machine type in kernel binary");
 		return 1;
+	}
 
 	return 0;
 }
@@ -134,9 +170,6 @@ pagetab_next(uint64_t *currtab, uint16_t index)
 	 * return.
 	 */
 
-	//printh(index);
-	//print(L"\r\n");
-
 	if (ptr == 0) {
 		ptr = palloc(1);
 		if (ptr == 0)
@@ -145,13 +178,13 @@ pagetab_next(uint64_t *currtab, uint16_t index)
 		currtab[index] = ptr | 3; /* Present, R/W */
 	}
 
-	/* Clear flags if present for clear address */
+	/* Clear flags if present for, sanitize address */
 	ptr = ((ptr >> 12) & 0x7FFFFFFFFF) << 12;
 	return (uint64_t *) ptr;
 }
 
 /* Map virtual addy to physical addy. */
-int
+static int
 mapaddr(uintptr_t virt, uintptr_t phys)
 {
 	uint16_t index;
@@ -161,12 +194,12 @@ mapaddr(uintptr_t virt, uintptr_t phys)
 
 	table = pagetab_next(table, ((virt >> 30) & 0x1FF));
 	if (table == NULL) {
-		print(L"Failed mapping "); printh(virt); print(L"\r\n");
+		fatal(L"Failed mapping "); printhln(virt);
 		return 1;
 	}
 	table = pagetab_next(table, ((virt >> 21) & 0x1FF));
 	if (table == NULL) {
-		print(L"Failed mapping "); printh(virt); print(L"\r\n");
+		fatal(L"Failed mapping "); printhln(virt);
 		return 1;
 	}
 	
@@ -175,20 +208,25 @@ mapaddr(uintptr_t virt, uintptr_t phys)
 	 * appropriate flags.
 	 */
 	index = ((virt >> 12) & 0x1FF);
-	printh(phys);
+
 	table[index] = phys | 3; /* Present, R/W */
 	return 0;
 }
 
+/*
+ * Load loadable segments from kernel binary into memory and populate new page
+ * tables.
+ */
 static int
 loadk(void)
 {
-	void *page;
+	efi_status s;
+	uintptr_t page;
 	uint64_t pgs, sz;
 	int i, j, loadable;
 
-	pdpt = (uint64_t *)palloc(1);
-	memzero((uintptr_t)pdpt, (uintptr_t)pdpt + 0x1000);
+	pdpt = (uint64_t *) palloc(1);
+	memzero((uintptr_t) pdpt, (uintptr_t) pdpt + 0x1000);
 
 	for (i = 0; i < ehdr.e_phnum; i++) {
 		if (phdrs[i].p_type != PT_LOAD)
@@ -200,22 +238,31 @@ loadk(void)
 		else
 			pgs = phdrs[i].p_memsz / 0x1000;
 
-		bootsrv->allocate_pages(
+		s = bootsrv->allocate_pages(
 			allocate_any_pages,
 			efi_runtime_services_code,
 			pgs,
 			(uint64_t *) &page
 		);
-		printh((uintptr_t) page);
+		if (s != EFI_SUCCESS) {
+			fatal(L"Failed to allocate memory for kernel");
+			return 1;
+		}
+
 		/* Read segment content from file into pages if necessary */
 		if (phdrs[i].p_filesz != 0) {
-			kfile->set_position(kfile, phdrs[i].p_offset);
+			s = kfile->set_position(kfile, phdrs[i].p_offset);
 			sz = phdrs[i].p_filesz;
-			kfile->read(
+			s = kfile->read(
 				kfile,
 				&sz,
-				page
+				(void *) page
 			);
+			if (s != EFI_SUCCESS) {
+				fatal(L"Failed to read kernel from boot "
+						"media");
+				return 1;
+			}
 		}
 
 		/* Zero unused memory if necessary */
@@ -233,7 +280,7 @@ loadk(void)
 	return 0;
 }
 
-efi_status 
+void
 load(void)
 {
 	efi_status s;
@@ -242,32 +289,38 @@ load(void)
 	uintptr_t val;
 
 	/* Read the Elf header and verify its validity */
-	if (read_ehdr() != 0) {
-		print(L"Invalid kernel\r\n");
-		return 1;
-	}
+	read_ehdr();
 
 	/* Read program headers to be analyzed */
-	if (read_phdrs() != 0)
-		return 1;
+	read_phdrs();
 
-	/* Allocate pages and load segments into memory */
+	/* 
+	 * Allocate pages, load kernel into memory, and populate new page
+	 * tables
+	 */
 	loadk();
 
-	printh(kargtab.fb.size);
-
+	/*
+	 * Retrieve memory map from EFI and exit EFI boot services
+	 * From this point forward we own the machine
+	 */
 	getmmap();
 	bootsrv->exit_boot_services(imghan, mmapkey);
 
 	/*
-	 * Prepare to map kernel pages. Ensures bit 16 in `cr0` is off and
-	 * returns the value of `cr3` so we can access PML4.
+	 * Get paging access. Ensures bit 16 in `cr0` is off and returns the
+	 * value of `cr3` so we can access the PML4 to link in our new mappings.
 	 */
-	cr3 = prep_map();
+	cr3 = pgaccess();
+
+	/* Install our mappings */
 	pml4 = (uint64_t *)((cr3 >> 12) << 12);
 	pml4[((ehdr.e_entry >> 39) & 0x1FF)] = (((uintptr_t)pdpt) | 3);
-
+	
+	/*
+	 * And.... We're outta here.
+	 * Setup the call to our kernel
+	 */
 	er(ehdr.e_entry, (uintptr_t) &kargtab);
-	return 0;
 }
 

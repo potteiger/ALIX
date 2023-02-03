@@ -4,7 +4,10 @@ all: $(TARGETS)
 include usr/src/boot/boot.mk
 include usr/src/sys/sys.mk
 clean: boot-clean sys-clean
-run: $(TARGETS)
+qemu-int: $(TARGETS)
 	qemu-system-x86_64 -no-reboot -bios boot/OVMFX64.fd \
-	-hdb fat:rw:boot -no-shutdown -monitor stdio #-d int
+	-hdb fat:rw:boot -no-shutdown -serial stdio -d int
+qemu-monitor:
+	qemu-system-x86_64 -no-reboot -bios boot/OVMFX64.fd \
+	-hdb fat:rw:boot -no-shutdown -monitor stdio
 

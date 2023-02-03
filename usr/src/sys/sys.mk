@@ -12,7 +12,7 @@ SYS-CFLAGS=-Iusr/src/include \
 	  -mcmodel=kernel
 SYS-LD=ld.lld
 
-SYS-TGT=boot/bonex64.sys
+SYS-TGT=boot/alix.sys
 SYS-OBJ=$(SYS-SRC)/main.o
 
 sys: $(SYS-TGT)

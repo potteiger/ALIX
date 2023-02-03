@@ -398,7 +398,15 @@ typedef struct efi_boot_services {
 	 */
 	void *			load_image;
 	void *			start_image;
-	void *			exit;
+
+	efi_status (*exit)
+	(
+		efi_handle	image_handle,
+		efi_status	exit_status,
+		uint64_t	exit_data_size,
+		int16_t *	exit_data
+	);
+	
 	void *			unload_image;
 
 	efi_status (*exit_boot_services)

@@ -1,5 +1,5 @@
 ;
-; `as.s` -- x86-64 EFI bootloader, `er` phase
+; `er.s` -- ALIX bootloader (x86-64 EFI), er phase
 ; Copyright (c) 2023 Alan Potteiger
 ;
 ; This Source Code Form is subject to the terms of the Mozilla Public
@@ -9,19 +9,28 @@
 
 bits 64
 
+global pgaccess
 global er
-global getcr3
-global prep_map
 
 section .text
 
-prep_map:
-	mov rax, 0x80000033 ; disable bit 16 in `cr0`
+;
+; Ensure bit #16 in `cr0` is disabled.
+; Return value of `cr3`
+;
+pgaccess:
+	mov rax, cr0	; clear bit #16 of `cr0`
+	and rax, 0xFFFFFFFFFFF0FFFF
 	mov cr0, rax
 
-	mov rax, cr3 ; return CR3 to find PML4
+	mov rax, cr3	; return `cr3` to find PML4
 	ret
 
+;
+; Final jump to the kernel
+; rcx = kernel entry point
+; rdx = pointer to kargtab struct
+;
 er:
 	mov rbp, rsp
 	mov rax, cr3

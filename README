@@ -1,5 +1,5 @@
-Bones
+ALIX
 =====
 
-Not much going on. Currently playing with UEFI booting.
+Not much going on. Homecooked EFI bootloader loads kernel that does nothing.
 
