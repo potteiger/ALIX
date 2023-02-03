@@ -9,19 +9,23 @@
 
 #include <stdint.h>
 
+#include <efi.h>
 #include <sys/kargtab.h>
+#include <sys/fb.h>
 
 void
 main(struct kargtab *kargtab)
 {
         uint64_t i;
         uint32_t *fb;
+	
+	init_fb(kargtab);
 
         /*
          * Paint screen a lovely brown
          */
-	fb = (uint32_t *) kargtab->fb.base;
-        for (i = 0; i < kargtab->fb.size; i++) {
+	fb = (uint32_t *) FRAMEBUFFER.base;
+        for (i = 0; i < FRAMEBUFFER.size; i++) {
 		fb[i] = 0xff3b3228;
         }
 

@@ -12,36 +12,16 @@
 
 /*
  * Contains data required by the kernel, a pointer to it is passed to it at
- * runtime. All pointers are virtual addresses mapped by the bootloader
+ * runtime. All pointers are mapped virtual addresses (likely identity maps
+ * remaining from UEFI).
  */
 struct kargtab {
 
-	uintptr_t	this;
-
-	/*
-	 * Framebuffer
-	 */
-	struct {
-
-		uint32_t 	horizontal;	/* dimension in pixels */
-		uint32_t 	vertical;	/* dimension in pixels */
-		uintptr_t 	base;		/* base address */
-		uint64_t	size;		/* total size */
-
-		/*
-		 * Console font
-		 */
-		struct {
-			
-			uintptr_t	base;
-			uint64_t	size;
-
-		} font;
-
-	} fb;
-
-	uintptr_t 	memory_map;	/* EFI memory map */
-	uintptr_t	pml4_virt;	/* PML4 table */
+	uintptr_t	this;		/* pointer to this structure */
+	uintptr_t	memory_map;	/* UEFI memory map */
+	uintptr_t	gop_mode;	/* GOP mode/info (Framebuffer access) */
+	uintptr_t	font_base;	/* Base address of loaded console font*/
+	uint64_t	font_size;	/* Size of loaded console font */
 
 };
 

@@ -1,5 +1,5 @@
 /*
- * `load.c` -- x86-64 EFI bootloader, load phase
+ * `load.c` -- ALIX bootloader (x86-64 EFI), load phase
  * Copyright (c) 2023 Alan Potteiger
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
@@ -71,7 +71,7 @@ static Elf64_Phdr *phdrs;       /* Program headers */
 static uint64_t *pdpt;
 
 /* Reads Elf program headers */
-static int
+static void
 read_phdrs(void)
 {
 	efi_status s;
@@ -83,10 +83,8 @@ read_phdrs(void)
 		bufsz,
 		(void **) &phdrs
 	);
-	if (s != EFI_SUCCESS) {
+	if (s != EFI_SUCCESS)
 		fatal(L"Failed pool allocation");
-		return 1;
-	}
 
 	kfile->set_position(kfile, ehdr.e_phoff);
 	s = kfile->read(
@@ -94,16 +92,12 @@ read_phdrs(void)
 		&bufsz,
 		phdrs
 	);
-	if (s != EFI_SUCCESS) {
+	if (s != EFI_SUCCESS)
 		fatal(L"Failed file read on kernel binary");
-		return 1;
-	}
-
-	return 0;
 }
 
 /* Reads the Elf header */
-static int
+static void
 read_ehdr(void)
 {
 	efi_status s;
@@ -115,10 +109,8 @@ read_ehdr(void)
 		&bufsz,
 		&ehdr
 	);
-	if (s != EFI_SUCCESS) {
+	if (s != EFI_SUCCESS)
 		fatal(L"Failed file read on kernel binary");
-		return 1;
-	}
 
 	/*
 	 * After reading Elf header perform checks on the data, make sure this
@@ -127,32 +119,20 @@ read_ehdr(void)
 	if ((ehdr.e_ident[EI_MAG0] != ELFMAG0)
 	|| (ehdr.e_ident[EI_MAG1] != ELFMAG1)
 	|| (ehdr.e_ident[EI_MAG2] != ELFMAG2)
-	|| (ehdr.e_ident[EI_MAG3] != ELFMAG3)) {
+	|| (ehdr.e_ident[EI_MAG3] != ELFMAG3))
 		fatal(L"Invalid Elf magic number in kernel binary");
-		return 1;
-	}
 
-	if (ehdr.e_ident[EI_CLASS] != ELFCLASS64) {
+	if (ehdr.e_ident[EI_CLASS] != ELFCLASS64)
 		fatal(L"Invalid Elf class in kernel binary");
-		return 1;
-	}
 
-	if (ehdr.e_ident[EI_DATA] != ELFDATA2LSB) {
+	if (ehdr.e_ident[EI_DATA] != ELFDATA2LSB)
 		fatal(L"Invalid Elf data type in kernel binary");
-		return 1;
-	}
 
-	if (ehdr.e_type != ET_EXEC) {
+	if (ehdr.e_type != ET_EXEC)
 		fatal(L"Invalid Elf object type in kernel binary");
-		return 1;
-	}
 
-	if (ehdr.e_machine != EM_X86_64) {
+	if (ehdr.e_machine != EM_X86_64)
 		fatal(L"Invalid Elf machine type in kernel binary");
-		return 1;
-	}
-
-	return 0;
 }
 
 /* Return next page table in hierarchy, create a new one if necessary. */
@@ -184,7 +164,7 @@ pagetab_next(uint64_t *currtab, uint16_t index)
 }
 
 /* Map virtual addy to physical addy. */
-static int
+static void
 mapaddr(uintptr_t virt, uintptr_t phys)
 {
 	uint16_t index;
@@ -193,15 +173,12 @@ mapaddr(uintptr_t virt, uintptr_t phys)
 	table = pdpt;
 
 	table = pagetab_next(table, ((virt >> 30) & 0x1FF));
-	if (table == NULL) {
+	if (table == NULL)
 		fatal(L"Failed mapping "); printhln(virt);
-		return 1;
-	}
+
 	table = pagetab_next(table, ((virt >> 21) & 0x1FF));
-	if (table == NULL) {
+	if (table == NULL)
 		fatal(L"Failed mapping "); printhln(virt);
-		return 1;
-	}
 	
 	/*
 	 * Reached the page table, now set the address of the page frame with
@@ -210,14 +187,13 @@ mapaddr(uintptr_t virt, uintptr_t phys)
 	index = ((virt >> 12) & 0x1FF);
 
 	table[index] = phys | 3; /* Present, R/W */
-	return 0;
 }
 
 /*
  * Load loadable segments from kernel binary into memory and populate new page
  * tables.
  */
-static int
+static void
 loadk(void)
 {
 	efi_status s;
@@ -244,10 +220,8 @@ loadk(void)
 			pgs,
 			(uint64_t *) &page
 		);
-		if (s != EFI_SUCCESS) {
+		if (s != EFI_SUCCESS)
 			fatal(L"Failed to allocate memory for kernel");
-			return 1;
-		}
 
 		/* Read segment content from file into pages if necessary */
 		if (phdrs[i].p_filesz != 0) {
@@ -258,11 +232,9 @@ loadk(void)
 				&sz,
 				(void *) page
 			);
-			if (s != EFI_SUCCESS) {
+			if (s != EFI_SUCCESS)
 				fatal(L"Failed to read kernel from boot "
 						"media");
-				return 1;
-			}
 		}
 
 		/* Zero unused memory if necessary */
@@ -276,8 +248,6 @@ loadk(void)
 			mapaddr(phdrs[i].p_vaddr + (j * 0x1000),
 					((uintptr_t) page) + (j * 0x1000));
 	}
-
-	return 0;
 }
 
 void

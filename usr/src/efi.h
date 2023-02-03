@@ -585,7 +585,7 @@ typedef struct efi_graphics_output_protocol_mode {
 	uint32_t				mode;
 	efi_graphics_output_mode_information *	info;
 	uint64_t				size_of_info;
-	uint64_t				framebuffer_base;
+	uintptr_t				framebuffer_base;
 	uint64_t				framebuffer_size;
 
 } efi_graphics_output_protocol_mode;

@@ -75,99 +75,6 @@ printh(uint64_t value)
 	print(hex);
 }
 
-/*
- * Access boot device filesystem and attempt to locate kernel.
- * Leaves file handle in `kfile` for the load phase.
- */
-static int
-findk(efi_handle img_handle)
-{
-	efi_status s;
-	efi_guid guid;
-	efi_simple_file_system_protocol* sfsp;
-	efi_handle devhandle;
-
-	guid = EFI_LOADED_IMAGE_PROTOCOL_GUID;
-	s = bootsrv->open_protocol(
-		img_handle,
-		&guid,
-		(void **) &imgpro,
-		img_handle,
-		0,
-		EFI_OPEN_PROTOCOL_BY_HANDLE_PROTOCOL
-	);
-	devhandle = imgpro->device_handle;
-	if (s != EFI_SUCCESS) {
-		fatal(L"Failed to access boot media");
-		return 1;
-	}
-
-	guid = EFI_SIMPLE_FILE_SYSTEM_PROTOCOL_GUID;
-	s = bootsrv->open_protocol(
-		devhandle,
-		&guid,
-		(void **) &sfsp,
-		img_handle,
-		0,
-		EFI_OPEN_PROTOCOL_BY_HANDLE_PROTOCOL
-	);
-	if (s != EFI_SUCCESS) {
-		fatal(L"Failed to access boot media");
-		return 1;
-	}
-
-	s = sfsp->open_volume(sfsp, &filesys);
-	if (s != EFI_SUCCESS) {
-		fatal(L"Failed to access boot media");
-		return 1;
-	}
-
-	println(L"Accessed boot media");
-
-	s = filesys->open(
-		filesys,
-		&kfile,
-		(int16_t *) L"alix.sys",
-		EFI_FILE_MODE_READ,
-		0
-	);
-	if (s != EFI_SUCCESS) {
-		fatal(L"Failed to locate kernel on boot media");
-		return 1;
-	}
-
-	println(L"Located kernel on boot media");
-	return 0;
-}
-
-/* Initialize Graphics Output Protocol. Populate entries in `kargtab`. */
-static int
-init_gop(void)
-{
-	efi_guid guid;
-	efi_status s;
-
-	guid = EFI_GRAPHICS_OUTPUT_PROTOCOL_GUID;
-	s = bootsrv->locate_protocol(
-		&guid,
-		NULL,
-		(void **) &gop
-	);
-	if (s != EFI_SUCCESS) {
-		fatal(L"Failed to access Graphics Output Protocol");
-		return 1;
-	}
-
-	kargtab.fb.base = gop->mode->framebuffer_base;
-	kargtab.fb.size = gop->mode->framebuffer_size;
-
-	println(L"Initialized Graphics Output Protocol");
-	print(L"Located framebuffer at address ");
-	printhln(kargtab.fb.base);
-
-	return 0;
-}
-
 /* Zero memory from and to. */
 void
 memzero(uintptr_t from, uintptr_t to)
@@ -190,16 +97,168 @@ palloc(int count)
 		count,
 		&ptr
 	);
-	if (s != EFI_SUCCESS) {
+	if (s != EFI_SUCCESS)
 		fatal(L"Failed to allocate page");
-		return 0;
-	}
 
 	return ptr;
 }
 
+/* Initializes boot media filesystem access */
+static void
+init_filesys()
+{
+	efi_status s;
+	efi_guid guid;
+	efi_simple_file_system_protocol * sfsp;
+	efi_handle devhandle;
+
+	guid = EFI_LOADED_IMAGE_PROTOCOL_GUID;
+	s = bootsrv->open_protocol(
+		imghan,
+		&guid,
+		(void **) &imgpro,
+		imghan,
+		0,
+		EFI_OPEN_PROTOCOL_BY_HANDLE_PROTOCOL
+	);
+	devhandle = imgpro->device_handle;
+	if (s != EFI_SUCCESS)
+		fatal(L"Failed to access boot media");
+
+	guid = EFI_SIMPLE_FILE_SYSTEM_PROTOCOL_GUID;
+	s = bootsrv->open_protocol(
+		devhandle,
+		&guid,
+		(void **) &sfsp,
+		imghan,
+		0,
+		EFI_OPEN_PROTOCOL_BY_HANDLE_PROTOCOL
+	);
+	if (s != EFI_SUCCESS)
+		fatal(L"Failed to access boot media");
+
+	s = sfsp->open_volume(sfsp, &filesys);
+	if (s != EFI_SUCCESS)
+		fatal(L"Failed to access boot media");
+
+	println(L"Accessed boot media");
+}
+
+/* Attempt to locate kernel and leave file handle in `kfile` for load phase. */
+static void
+find_kernel()
+{
+	efi_status s;
+	
+	s = filesys->open(
+		filesys,
+		&kfile,
+		(int16_t *) L"alix.sys",
+		EFI_FILE_MODE_READ,
+		0
+	);
+	if (s != EFI_SUCCESS)
+		fatal(L"Failed to locate kernel on boot media");
+
+	println(L"Located kernel on boot media");
+}
+
+/* Locate and load console font for kernel and populate `kargtab` fields. */
+static void
+find_font()
+{
+	efi_status s;
+	efi_guid guid;
+	efi_file_protocol *d, *f;
+	efi_file_info *info;
+	uint64_t sz;
+	uintptr_t pgs;
+
+	/* Find font file */
+	s = filesys->open(
+		filesys,
+		&d,
+		(int16_t *) L"font",
+		EFI_FILE_MODE_READ,
+		0
+	);
+	if (s != EFI_SUCCESS)
+		fatal(L"Failed to locate kernel console font on boot media");
+
+	s = d->open(
+		d,
+		&f,
+		(int16_t *) L"spleen-8x16.psfu",
+		EFI_FILE_MODE_READ,
+		0
+	);
+	if (s != EFI_SUCCESS)
+		fatal(L"Failed to locate kernel console font on boot media");
+
+	println(L"Located kernel console font on boot media");
+	
+	/* Determine file size */
+	guid = EFI_FILE_INFO_ID;
+	sz = 0;
+	info = NULL;
+	f->get_info(f, &guid, &sz, (void *) info);
+	s = bootsrv->allocate_pool(
+		efi_runtime_services_data,
+		sz,
+		(void **) &info
+	);
+	if (s != EFI_SUCCESS)
+		fatal(L"Memory allocation fail");
+
+	s = f->get_info(
+		f,
+		&guid,
+		&sz,
+		(void *) info
+	);
+	if (s!= EFI_SUCCESS)
+		fatal(L"Failed font file access");
+	sz = info->file_size;
+
+	/* allocate pages and read file */
+	pgs = palloc((sz / 0x1000) + 1);
+
+	s = f->read(
+		f,
+		&sz,
+		(void *) pgs
+	);
+	if (s != EFI_SUCCESS)
+		fatal(L"Failed to read font from boot media");
+
+	println(L"Font read from boot media");
+	kargtab.font_base = (uintptr_t) pgs;
+	kargtab.font_size = sz;
+}
+
+/* Initialize Graphics Output Protocol. Populate entries in `kargtab`. */
+static void
+init_gop(void)
+{
+	efi_guid guid;
+	efi_status s;
+
+	guid = EFI_GRAPHICS_OUTPUT_PROTOCOL_GUID;
+	s = bootsrv->locate_protocol(
+		&guid,
+		NULL,
+		(void **) &gop
+	);
+	if (s != EFI_SUCCESS)
+		fatal(L"Failed to access Graphics Output Protocol");
+
+	kargtab.gop_mode = (uintptr_t) gop->mode;
+
+	println(L"Initialized Graphics Output Protocol");
+}
+
 /* Retrieve the EFI memory map. Populate entry in `kargtab`. */
-int
+void
 getmmap()
 {
 	efi_status s;
@@ -225,10 +284,8 @@ getmmap()
 		sz,
 		(void **) &mmap
 	);
-	if (s != EFI_SUCCESS) {
+	if (s != EFI_SUCCESS)
 		fatal(L"Failed to allocate memory for EFI memory map");
-		return 1;
-	}
 
 	s = bootsrv->get_memory_map(
 		&sz,
@@ -237,13 +294,10 @@ getmmap()
 		&dsz,
 		&ver
 	);
-	if (s != EFI_SUCCESS) {
+	if (s != EFI_SUCCESS)
 		fatal(L"Failed to obtain EFI memory map");
-		return 1;
-	}
 
 	kargtab.memory_map = (uintptr_t) mmap;
-	return 0;
 }
 
 void
@@ -258,8 +312,14 @@ boot(efi_handle img_handle, efi_system_table *st)
 	clear();
 	println(L"ALIX Bootloader:");
 
+	/* Access boot media filesystem */
+	init_filesys();
+
 	/* Locate kernel on boot media */
-	findk(img_handle);
+	find_kernel();
+
+	/* Locate and load kernel console font */
+	find_font();
 
 	/* Initialize GOP */
 	init_gop();

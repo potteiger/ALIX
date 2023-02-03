@@ -1,6 +1,6 @@
 BOOT-SRC=usr/src/boot
 BOOT-CC=clang
-BOOT-CFLAGS=-Iusr/src/include \
+BOOT-CFLAGS=-Iusr/src \
 	-std=c99 \
        -target x86_64-unknown-windows-cygnus \
        -ffreestanding \
