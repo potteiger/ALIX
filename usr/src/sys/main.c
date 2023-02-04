@@ -11,7 +11,7 @@
 
 #include <efi.h>
 #include <sys/kargtab.h>
-#include <sys/fb.h>
+#include <sys/syscon.h>
 
 void
 main(struct kargtab *kargtab)
@@ -19,17 +19,9 @@ main(struct kargtab *kargtab)
         uint64_t i;
         uint32_t *fb;
 	
-	init_fb(kargtab);
+	init_syscon(kargtab);
 
-        /*
-         * Paint screen a lovely brown
-         */
-	fb = (uint32_t *) FRAMEBUFFER.base;
-        for (i = 0; i < FRAMEBUFFER.size; i++) {
-		fb[i] = 0xff3b3228;
-        }
-
-	fb_plot(250, 250, fb_color(255, 0, 255));
+	syscon_write("Peanut butter!");
 
         for(;;);
 }

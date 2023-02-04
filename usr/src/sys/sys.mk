@@ -13,7 +13,7 @@ SYS-CFLAGS=-Iusr/src \
 SYS-LD=ld.lld
 
 SYS-TGT=boot/alix.sys
-SYS-OBJ=$(SYS-SRC)/main.o $(SYS-SRC)/fb.o
+SYS-OBJ=$(SYS-SRC)/main.o $(SYS-SRC)/fb.o $(SYS-SRC)/syscon.o
 
 sys: $(SYS-TGT)
 
@@ -25,6 +25,9 @@ $(SYS-SRC)/main.o: $(SYS-SRC)/main.c
 
 $(SYS-SRC)/fb.o: $(SYS-SRC)/fb.c
 	$(SYS-CC) $(SYS-CFLAGS) -c $(SYS-SRC)/fb.c -o $(SYS-SRC)/fb.o
+
+$(SYS-SRC)/syscon.o: $(SYS-SRC)/syscon.c
+	$(SYS-CC) $(SYS-CFLAGS) -c $(SYS-SRC)/syscon.c -o $(SYS-SRC)/syscon.o
 
 sys-clean:
 	rm -f $(SYS-TGT)

@@ -27,6 +27,10 @@
 	uint8_t		greenshift; 					      \
 	uint8_t		blueshift; }
 
+#define fb_plot(x, y, color) ((uint32_t *) \
+		FRAMEBUFFER.base)[(y * FRAMEBUFFER.width) + x] = color
+
+
 #ifndef _FB_C_
 extern const _Framebuffer FRAMEBUFFER;
 #endif
@@ -34,7 +38,6 @@ extern const _Framebuffer FRAMEBUFFER;
 typedef uint32_t Color;
 
 void 	init_fb(struct kargtab *kargtab);
-void	fb_plot(uint32_t x, uint32_t y, Color color);
 Color	fb_color(Color red, Color green, Color blue);
 
 

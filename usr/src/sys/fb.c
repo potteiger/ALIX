@@ -79,13 +79,6 @@ fb_color(Color red, Color green, Color blue)
 	blue = blue << FRAMEBUFFER.blueshift;
 	blue = blue & FRAMEBUFFER.bluemask;
 
-	return red | blue | green;
-}
-
-/* Plot a pixel */
-void
-fb_plot(uint32_t x, uint32_t y, Color color)
-{
-	((uint32_t *) FRAMEBUFFER.base)[(y * FRAMEBUFFER.width) + x] = color;
+	return (red | green) | blue;
 }
 
