@@ -29,6 +29,8 @@ main(struct kargtab *kargtab)
 		fb[i] = 0xff3b3228;
         }
 
+	fb_plot(250, 250, fb_color(255, 0, 255));
+
         for(;;);
 }
 

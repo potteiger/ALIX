@@ -10,20 +10,33 @@
 #ifndef _FB_H_
 #define _FB_H_
 
-extern const struct Framebuffer {
+#define _Framebuffer struct Framebuffer { \
+	uintptr_t	base;		/* base address of framebuffer */     \
+	uint64_t	size;		/* size of framebuffer (in pixels) */ \
+	uint32_t	width;		/* width in pixels */                 \
+	uint32_t	height;		/* height in pixels */                \
+	uint32_t	scanlinepx;	/* pixels per scan line */            \
+	/*								      \
+	 * Number of bits to shift left for the set GOP pixel format and      \
+	 * appropriate masks					      	      \
+	 */								      \
+	uint32_t	redmask;					      \
+	uint32_t	greenmask;					      \
+	uint32_t	bluemask;					      \
+	uint8_t		redshift;					      \
+	uint8_t		greenshift; 					      \
+	uint8_t		blueshift; }
 
-	uintptr_t	base;		/* base address of framebuffer */
-	uint64_t	size;		/* size of framebuffer (in pixels) */
-	uint32_t	width;		/* width in pixels */
-	uint32_t	height;		/* height in pixels */
-	uint32_t	scanlinepx;	/* pixels per scan line */
+#ifndef _FB_C_
+extern const _Framebuffer FRAMEBUFFER;
+#endif
 
-} FRAMEBUFFER;
+typedef uint32_t Color;
 
-/*
- * Populate `FRAMEBUFFER` with information from UEFI GOP
- */
 void 	init_fb(struct kargtab *kargtab);
+void	fb_plot(uint32_t x, uint32_t y, Color color);
+Color	fb_color(Color red, Color green, Color blue);
+
 
 #endif /* _FB_H_ */
 
