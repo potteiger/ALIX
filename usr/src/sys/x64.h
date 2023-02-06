@@ -1,5 +1,5 @@
 /*
- * `syscon.h` -- System console interface
+ * `x64.h` -- Prototypes for assorted x86-64 assembly procedures.
  * Copyright (c) 2023 Alan Potteiger
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
@@ -7,12 +7,10 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
-#ifndef _SYSCON_H_
-#define _SYSCON_H_
+#ifndef _X64_H_
+#define _X64_H_
 
-void	syscon_init(struct kargtab *kargtab);
-void	kprintf(const char *fmt, ...);
-void 	syscon_write(void *buf, size_t sz);
+void	outb(uint16_t port, uint8_t byte);
 
 #endif
 

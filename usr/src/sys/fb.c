@@ -21,7 +21,7 @@ _Framebuffer FRAMEBUFFER;
  * Populate `FRAMEBUFFER` with information from UEFI GOP
  */
 void
-init_fb(struct kargtab *kargtab)
+fb_init(struct kargtab *kargtab)
 {
 	efi_graphics_output_protocol_mode *mode;
 

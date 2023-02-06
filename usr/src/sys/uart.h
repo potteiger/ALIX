@@ -1,5 +1,5 @@
 /*
- * `syscon.h` -- System console interface
+ * `uart.h` -- UART/Serial communication (mainly for QEMU).
  * Copyright (c) 2023 Alan Potteiger
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
@@ -7,12 +7,11 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
-#ifndef _SYSCON_H_
-#define _SYSCON_H_
+#ifndef _UART_H_
+#define _UART_H_
 
-void	syscon_init(struct kargtab *kargtab);
-void	kprintf(const char *fmt, ...);
-void 	syscon_write(void *buf, size_t sz);
+void	uart_init();
+void	uart_putc(char ch);
 
-#endif
+#endif /* _UART_H_ */
 

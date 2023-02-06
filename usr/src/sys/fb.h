@@ -37,7 +37,7 @@ extern const _Framebuffer FRAMEBUFFER;
 
 typedef uint32_t Color;
 
-void 	init_fb(struct kargtab *kargtab);
+void 	fb_init(struct kargtab *kargtab);
 Color	fb_color(Color red, Color green, Color blue);
 
 

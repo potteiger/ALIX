@@ -8,6 +8,8 @@
  */
 
 #include <stdint.h>
+#include <stddef.h>
+#include <stdbool.h>
 
 #include <efi.h>
 #include <sys/kargtab.h>
@@ -16,12 +18,9 @@
 void
 main(struct kargtab *kargtab)
 {
-        uint64_t i;
-        uint32_t *fb;
-	
-	init_syscon(kargtab);
+	syscon_init(kargtab);
 
-	syscon_write("Peanut butter!");
+	kprintf("ALIX...\n");
 
         for(;;);
 }
