@@ -20,7 +20,7 @@ main(struct kargtab *kargtab)
 {
 	syscon_init(kargtab);
 
-	kprintf("ALIX...\n");
+	kprintf("ALIX...");
 
         for(;;);
 }

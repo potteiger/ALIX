@@ -15,6 +15,7 @@
 #include <sys/kargtab.h>
 #include <sys/uart.h>
 #include <sys/syscon.h>
+#include <sys/vt.h>
 
 /*
  * System Console interface for the kernel. Currently not focussing on a virtual
@@ -27,8 +28,8 @@
 void
 syscon_init(struct kargtab *kargtab)
 {
-	/* Initialize UART for messaging */
-	uart_init();
+	uart_init();		/* Initialize UART for messaging */
+	vt_init(kargtab);	/* Virtual terminal */
 }
 
 /*
@@ -43,6 +44,14 @@ printval(int64_t sval, int base, int sign)
 	static char buf[32];
 	uint64_t value;
 	int i;
+
+	if (sval == 0) {
+		if (base == 10)
+			kputc('0');
+		else if (base == 16)
+			kputs("0x0");
+		return;
+	}
 
 	if (sign && (sign = (sval < 0)))
 		value = -sval;
@@ -69,9 +78,16 @@ printval(int64_t sval, int base, int sign)
 	}
 
 	while (buf[i] != '\0') {
-		uart_putc(buf[i]);
+		kputc(buf[i]);
 		i++;
 	}
+}
+
+void
+kputc(char ch)
+{
+	uart_putc(ch);
+	vt_putc(ch);
 }
 
 /* Print a null terminated string */
@@ -79,7 +95,7 @@ void
 kputs(char *string)
 {
 	for (; *string != '\0'; string++)
-		uart_putc(*string);
+		kputc(*string);
 }
 
 /*
@@ -104,7 +120,6 @@ kprintf(const char *fmt, ...)
 	char *ptr;
 	char size;
 	char format;
-	int diff;
 	int base;
 	int sign;
 	int64_t num;
@@ -115,30 +130,29 @@ kprintf(const char *fmt, ...)
 	size = format = 0;
 	sign = 1;
 
-	for (; *fmt != '\0'; fmt++) {
+	while (*fmt != '\0') {
 		if (*fmt != '%') {
-			uart_putc(*fmt);
+			kputc(*fmt);
+			fmt++;
 			continue;
 		}
 		fmt++;
 
-		diff = 0;
 swtch:
-		switch (*fmt+diff) {
+		switch (*fmt) {
 		case 'h':
 			size = 'h';
-			diff++;
-			if (*fmt+1 == 'h')
-				diff++;
+			fmt++;
+			if (*fmt == 'h')
+				fmt++;
 			goto swtch;
 		case 'l':
 			size = 'l';
-			diff++;
+			fmt++;
 			goto swtch;
 		case 's':
 			if (size != '\0') {
-				uart_putc('%');
-				fmt++;
+				kputc('%');
 				continue;
 			}
 
@@ -147,26 +161,25 @@ swtch:
 			continue;
 		case 'c':
 			if (size != '\0') {
-				uart_putc('%');
-				fmt++;
+				kputc('%');
 				continue;
 			}
 
-			uart_putc((char) va_arg(args, int));
+			kputc((char) va_arg(args, int));
 			fmt++;
 			continue;
 		case 'u':
 			sign = 0;
 		case 'd':
 			base = 10;
-			diff++;
+			fmt++;
 			break;
 		case 'x':
 			base = 16;
-			diff++;
+			fmt++;
 			break;
 		default:
-			uart_putc('%');
+			kputc('%');
 			fmt++;
 			continue;
 		}
@@ -178,7 +191,6 @@ swtch:
 			num = va_arg(args, int32_t);
 
 		printval(num, base, sign);
-		fmt += diff;
 	}
 
 	va_end(args);
@@ -189,7 +201,7 @@ void
 syscon_write(void *buf, size_t sz)
 {
 	for (; sz > 0; sz--) {
-		uart_putc(*(char *)buf);
+		kputc(*(char *)buf);
 		buf++;
 	}
 }

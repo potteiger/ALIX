@@ -24,6 +24,8 @@ void
 fb_init(struct kargtab *kargtab)
 {
 	efi_graphics_output_protocol_mode *mode;
+	uint32_t *fb;
+	int i;
 
 	mode = (efi_graphics_output_protocol_mode *) kargtab->gop_mode;
 
@@ -63,6 +65,12 @@ fb_init(struct kargtab *kargtab)
 		FRAMEBUFFER.redmask = 0x00FF0000;
 		break;
 
+	}
+
+	fb = (uint32_t *) FRAMEBUFFER.base;
+	/* Fill background */
+	for (i = 0; i < FRAMEBUFFER.size; i++) {
+		fb[i] = 0x00000000;
 	}
 }
 

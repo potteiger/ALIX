@@ -11,6 +11,8 @@
 #define _SYSCON_H_
 
 void	syscon_init(struct kargtab *kargtab);
+void	kputc(char ch);
+void	kputs(char *string);
 void	kprintf(const char *fmt, ...);
 void 	syscon_write(void *buf, size_t sz);
 

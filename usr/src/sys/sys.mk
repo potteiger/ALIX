@@ -14,7 +14,7 @@ SYS-LD=ld.lld
 
 SYS-TGT=boot/alix.sys
 SYS-OBJ=$(SYS-SRC)/main.o $(SYS-SRC)/fb.o $(SYS-SRC)/syscon.o $(SYS-SRC)/x64.o \
-	$(SYS-SRC)/uart.o
+	$(SYS-SRC)/uart.o $(SYS-SRC)/vt.o
 
 sys: $(SYS-TGT)
 
@@ -35,6 +35,9 @@ $(SYS-SRC)/x64.o: $(SYS-SRC)/x64.s
 
 $(SYS-SRC)/uart.o: $(SYS-SRC)/uart.c
 	$(SYS-CC) $(SYS-CFLAGS) -c $(SYS-SRC)/uart.c -o $(SYS-SRC)/uart.o
+
+$(SYS-SRC)/vt.o: $(SYS-SRC)/vt.c
+	$(SYS-CC) $(SYS-CFLAGS) -c $(SYS-SRC)/vt.c -o $(SYS-SRC)/vt.o
 
 sys-clean:
 	rm -f $(SYS-TGT)
