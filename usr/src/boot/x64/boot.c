@@ -326,6 +326,8 @@ boot(efi_handle img_handle, efi_system_table *st)
 	/* Initialize GOP */
 	gop_init();
 
+	kargtab.runtime_srv = (uintptr_t) systab->runtime_services;
+
 	/* Enter kernel load phase */
 	load();
 }

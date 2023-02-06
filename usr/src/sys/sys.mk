@@ -40,5 +40,5 @@ $(SYS-SRC)/vt.o: $(SYS-SRC)/vt.c
 	$(SYS-CC) $(SYS-CFLAGS) -c $(SYS-SRC)/vt.c -o $(SYS-SRC)/vt.o
 
 sys-clean:
-	rm -f $(SYS-TGT)
+	rm -f $(SYS-TGT) $(SYS-OBJ)
 
