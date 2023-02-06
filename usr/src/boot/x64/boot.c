@@ -19,7 +19,9 @@
 #define println(string) { print(string); print(L"\r\n"); }
 #define printhln(val) { printh(val); print(L"\r\n"); }
 /* Perhaps this will be done more 'proper' later... EFI is just so damn dumb */
-#define fatal(string) { print(string); \
+#define fatal(string) { println(string); \
+			println(L"Exiting in 10 seconds..."); \
+			bootsrv->stall(10000000);\
 			bootsrv->exit(imghan, EFI_SUCCESS, 0, NULL); }
 #define clear() systab->console_out->clear_screen(systab->console_out)
 
@@ -105,7 +107,7 @@ palloc(int count)
 
 /* Initializes boot media filesystem access */
 static void
-init_filesys()
+filesys_init()
 {
 	efi_status s;
 	efi_guid guid;
@@ -238,7 +240,7 @@ find_font()
 
 /* Initialize Graphics Output Protocol. Populate entries in `kargtab`. */
 static void
-init_gop(void)
+gop_init(void)
 {
 	efi_guid guid;
 	efi_status s;
@@ -310,10 +312,10 @@ boot(efi_handle img_handle, efi_system_table *st)
 	bootsrv = systab->boot_services;
 
 	clear();
-	println(L"ALIX Bootloader:");
+	println(L"ALIX Bootloader...");
 
 	/* Access boot media filesystem */
-	init_filesys();
+	filesys_init();
 
 	/* Locate kernel on boot media */
 	find_kernel();
@@ -322,7 +324,7 @@ boot(efi_handle img_handle, efi_system_table *st)
 	find_font();
 
 	/* Initialize GOP */
-	init_gop();
+	gop_init();
 
 	/* Enter kernel load phase */
 	load();

@@ -174,11 +174,11 @@ mapaddr(uintptr_t virt, uintptr_t phys)
 
 	table = pagetab_next(table, ((virt >> 30) & 0x1FF));
 	if (table == NULL)
-		fatal(L"Failed mapping "); printhln(virt);
+		fatal(L"Failed mapping ");
 
 	table = pagetab_next(table, ((virt >> 21) & 0x1FF));
 	if (table == NULL)
-		fatal(L"Failed mapping "); printhln(virt);
+		fatal(L"Failed mapping ");
 	
 	/*
 	 * Reached the page table, now set the address of the page frame with

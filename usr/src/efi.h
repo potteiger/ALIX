@@ -419,7 +419,12 @@ typedef struct efi_boot_services {
 	 * Miscellaneous services
 	 */
 	void *			get_next_monotonic_count;
-	void *			stall;
+
+	efi_status (*stall)
+	(
+		uint64_t	microseconds
+	);
+
 	void *			set_watchdog_timer;
 
 	/*
