@@ -10,7 +10,10 @@ PHDRS
 
 SECTIONS
 {
+	/* Kernel base address */
 	. = 0xFFFFFFFF80000000 ;
+	kbase = . ;	/* Make a symbol for it */
+
 	.text . : {
 		*(.text)
 	} :text
@@ -22,4 +25,6 @@ SECTIONS
 	.rodata ALIGN(0x1000): {
 		*(.rodata*)
 	} :rodata
+
+	kend = . ;	/* Symbol marking end of loaded kernel memory */
 }
