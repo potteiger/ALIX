@@ -18,7 +18,9 @@
 struct kargtab {
 
 	uintptr_t	this;		/* pointer to this structure */
-	uintptr_t	memory_map;	/* UEFI memory map */
+	uintptr_t	mmap;		/* UEFI memory map */
+	uint64_t	mmap_sz;	/* 	-total size */
+	uint64_t	mmap_dsz;	/* 	-size of single descriptor */
 	uintptr_t	runtime_srv;	/* UEFI Runtime Services */
 	uintptr_t	gop_mode;	/* GOP mode/info (Framebuffer access) */
 	uintptr_t	font_base;	/* Base address of loaded console font*/

@@ -299,7 +299,9 @@ getmmap()
 	if (s != EFI_SUCCESS)
 		fatal(L"Failed to obtain EFI memory map");
 
-	kargtab.memory_map = (uintptr_t) mmap;
+	kargtab.mmap = (uintptr_t) mmap;
+	kargtab.mmap_sz = (uint64_t) sz;
+	kargtab.mmap_dsz = (uint64_t) dsz;
 }
 
 void

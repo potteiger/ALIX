@@ -14,13 +14,15 @@
 #include <efi.h>
 #include <sys/kargtab.h>
 #include <sys/syscon.h>
+#include <sys/pmm.h>
 
 void
 main(struct kargtab *kargtab)
 {
-	syscon_init(kargtab);
+	syscon_init(kargtab);	/* Initialize system console and dependencies */
+	kprintf("ALIX...\n");	/* We can talk */
 
-	kprintf("ALIX...");
+	pmm_init(kargtab);	/* Physical memory manager */
 
         for(;;);
 }
