@@ -1,5 +1,32 @@
 ALIX
-=====
+====
+A Little Unix-like
 
-Not much going on. Homecooked EFI bootloader loads kernel that does nothing.
+Just a little personal project of mine. Writing a small Unix-like system from
+scratch targetting x86-64 EFI machines. Looking to learn everything I can along
+the way and hopefully create a cool little system.
+
+Currently I have a UEFI bootloader that loads an ELF kernel and a console font
+for it's system console. Very simple bootloader. Will be revisited and improved
+at a later date where necessary.
+
+I have just started the kernel. Has a super barebones system console interface
+setup that will suffice for early development of the system.
+
+TODO
+----
+
+ - Bootloader
+ 	- Check code cleanliness
+	- Improve error handling, explore error recovery
+ - Kernel
+ 	- everything
+
+LICENSE
+-------
+
+MPL-v2, see `LICENSE`.
+
+`spleen` font for the console is licensed differently, see:
+`boot/font/SPEEN-LICENSE`.
 
