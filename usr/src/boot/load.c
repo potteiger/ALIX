@@ -19,7 +19,6 @@
 						(int16_t *) string)
 #define println(string) { print(string); print(L"\r\n"); }
 #define printhln(val) { printh(val); print(L"\r\n"); }
-/* Perhaps this will be done more 'proper' later... EFI is just so damn dumb */
 #define fatal(string) { print(string); \
 			bootsrv->exit(imghan, EFI_SUCCESS, 0, NULL); }
 
@@ -257,17 +256,11 @@ load(void)
 	uintptr_t cr3;
 	uint64_t *pml4;
 	uintptr_t val;
+	
+	read_ehdr();	/* Read the Elf header and verify its validity */	
+	read_phdrs();	/* Read program headers to be analyzed */
 
-	/* Read the Elf header and verify its validity */
-	read_ehdr();
-
-	/* Read program headers to be analyzed */
-	read_phdrs();
-
-	/* 
-	 * Allocate pages, load kernel into memory, and populate new page
-	 * tables
-	 */
+	/* Allocate pages, read kernel, and populate new page tables */
 	loadk();
 
 	/*

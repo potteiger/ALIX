@@ -175,6 +175,7 @@ swtch:
 			fmt++;
 			break;
 		case 'x':
+			sign = 0;
 			base = 16;
 			fmt++;
 			break;

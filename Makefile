@@ -4,11 +4,11 @@ TARGETS=boot/alix.sys boot/EFI/BOOT/BOOTX64.EFI
 
 all: $(TARGETS)
 
-boot/EFI/BOOT/BOOTX64.EFI:
+boot/EFI/BOOT/BOOTX64.EFI: usr/src/boot
 	cd usr/src/boot && $(MAKE)
 	mv usr/src/boot/BOOTX64.EFI boot/EFI/BOOT/BOOTX64.EFI
 
-boot/alix.sys:
+boot/alix.sys: usr/src/sys
 	cd usr/src/sys && $(MAKE)
 	mv usr/src/sys/alix.sys boot/alix.sys
 

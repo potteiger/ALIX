@@ -18,7 +18,6 @@
 						(int16_t *) string)
 #define println(string) { print(string); print(L"\r\n"); }
 #define printhln(val) { printh(val); print(L"\r\n"); }
-/* Perhaps this will be done more 'proper' later... EFI is just so damn dumb */
 #define fatal(string) { println(string); \
 			println(L"Exiting in 10 seconds..."); \
 			bootsrv->stall(10000000);\
@@ -315,18 +314,11 @@ boot(efi_handle img_handle, efi_system_table *st)
 
 	clear();
 	println(L"ALIX Bootloader...");
-
-	/* Access boot media filesystem */
-	filesys_init();
-
-	/* Locate kernel on boot media */
-	find_kernel();
-
-	/* Locate and load kernel console font */
-	find_font();
-
-	/* Initialize GOP */
-	gop_init();
+	
+	filesys_init();	/* Access boot media filesystem */
+	find_kernel();	/* Locate kernel on boot media */
+	find_font();	/* Locate and load kernel console font */
+	gop_init();	/* Initialize GOP and obtain framebuffer */
 
 	kargtab.runtime_srv = (uintptr_t) systab->runtime_services;
 

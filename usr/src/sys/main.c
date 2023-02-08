@@ -16,6 +16,8 @@
 #include <sys/syscon.h>
 #include <sys/pmm.h>
 
+extern uintptr_t *kbase;	/* Kernel base address defined in `link.ld`. */
+
 void
 main(struct kargtab *kargtab)
 {
@@ -24,9 +26,10 @@ main(struct kargtab *kargtab)
 
 	if (kargtab != NULL)
 		kprintf("Received arguments from bootloader\n");
+	kprintf("Kernel loaded at %lx\n", &kbase);
 
-	pmm_init(kargtab);	/* Physical memory manager */
-
-        for(;;);
+	pmm_init(kargtab);	/* Physical memory manager */	
+        
+	for(;;);
 }
 
