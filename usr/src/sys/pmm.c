@@ -14,6 +14,8 @@
 #include <sys/kargtab.h>
 #include <sys/syscon.h>
 
+#define PAGE_SIZE	0x1000
+
 /* UEFI Memory Map */
 static efi_memory_descriptor *	mmap;		/* Root descriptor */
 static uint64_t			mmap_sz;	/* Total mmap size */
@@ -26,6 +28,6 @@ pmm_init(struct kargtab *kargtab)
 	mmap_sz = kargtab->mmap_sz;
 	mmap_dsz = kargtab->mmap_dsz;
 	
-	kprintf("PMM: Retrieved UEFI Memory Map\n");
+	
 }
 

@@ -22,6 +22,9 @@ main(struct kargtab *kargtab)
 	syscon_init(kargtab);	/* Initialize system console and dependencies */
 	kprintf("ALIX...\n");	/* We can talk */
 
+	if (kargtab != NULL)
+		kprintf("Received arguments from bootloader\n");
+
 	pmm_init(kargtab);	/* Physical memory manager */
 
         for(;;);

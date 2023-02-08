@@ -1,16 +1,29 @@
 .POSIX:
-TARGETS=boot sys
+
+TARGETS=boot/alix.sys boot/EFI/BOOT/BOOTX64.EFI
+
 all: $(TARGETS)
-include usr/src/boot/boot.mk
-include usr/src/sys/sys.mk
-clean: boot-clean sys-clean
+
+boot/EFI/BOOT/BOOTX64.EFI:
+	cd usr/src/boot && $(MAKE)
+	mv usr/src/boot/BOOTX64.EFI boot/EFI/BOOT/BOOTX64.EFI
+
+boot/alix.sys:
+	cd usr/src/sys && $(MAKE)
+	mv usr/src/sys/alix.sys boot/alix.sys
+
+clean:
+	cd usr/src/boot && $(MAKE) clean
+	cd usr/src/sys && $(MAKE) clean
+	rm -f $(TARGETS)
+
 qemu-int: $(TARGETS)
 	qemu-system-x86_64 -no-reboot -bios boot/OVMFX64.fd \
 	-hdb fat:rw:boot -no-shutdown -d int
-qemu-monitor:
+qemu-monitor: $(TARGETS)
 	qemu-system-x86_64 -no-reboot -bios boot/OVMFX64.fd \
 	-hdb fat:rw:boot -no-shutdown -monitor stdio
-qemu-serial:
+qemu-serial: $(TARGETS)
 	qemu-system-x86_64 -no-reboot -bios boot/OVMFX64.fd \
 	-hdb fat:rw:boot -no-shutdown -serial stdio
 
