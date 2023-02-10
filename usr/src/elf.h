@@ -1,4 +1,4 @@
-/* `elf.h` -- Definitions for ELF object file format
+/* ALIX: `elf.h` -- Definitions for ELF object file format
  * Copyright (c) 2022 Alan Potteiger
  *
  * This Source Code Form is subject to the terms of the Mozilla Public

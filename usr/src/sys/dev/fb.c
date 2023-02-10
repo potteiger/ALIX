@@ -1,5 +1,5 @@
 /*
- * `fb.c` -- framebuffer
+ * ALIX: `sys/dev/fb.c` -- framebuffer device
  * Copyright (c) 2023 Alan Potteiger
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
@@ -13,7 +13,7 @@
 #include <sys/kargtab.h>
 
 #define _FB_C_
-#include <sys/fb.h>
+#include <sys/dev/fb.h>
 
 _Framebuffer FRAMEBUFFER;
 

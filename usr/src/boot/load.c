@@ -1,5 +1,5 @@
 /*
- * `load.c` -- ALIX bootloader (x86-64 EFI), load phase
+ * ALIX: `boot/load.c` -- ALIX bootloader (x86-64 EFI), load phase
  * Copyright (c) 2023 Alan Potteiger
  *
  * This Source Code Form is subject to the terms of the Mozilla Public

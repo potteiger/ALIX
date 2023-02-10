@@ -1,5 +1,5 @@
 /*
- * `x64.h` -- Prototypes for assorted x86-64 assembly procedures.
+ * ALIX: `sys/x64.h` -- Prototypes for assorted x86-64 assembly procedures.
  * Copyright (c) 2023 Alan Potteiger
  *
  * This Source Code Form is subject to the terms of the Mozilla Public

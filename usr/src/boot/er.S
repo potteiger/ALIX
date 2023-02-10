@@ -1,5 +1,5 @@
 ;
-; `er.s` -- ALIX bootloader (x86-64 EFI), er phase
+; ALIX: `boot/er.s` -- ALIX bootloader (x86-64 EFI), er phase
 ; Copyright (c) 2023 Alan Potteiger
 ;
 ; This Source Code Form is subject to the terms of the Mozilla Public

@@ -17,7 +17,8 @@ LD=ld.lld
 LDFLAGS=-T link.ld
 
 SYS=alix.sys
-OBJ=main.o fb.o syscon.o x64.o uart.o vt.o pmm.o
+OBJ_DEV=dev/fb.o dev/console.o dev/vt.o dev/uart.o
+OBJ=main.o x64.o pmm.o $(OBJ_DEV)
 
 all: $(SYS)
 

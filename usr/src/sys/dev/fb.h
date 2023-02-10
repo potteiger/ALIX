@@ -1,5 +1,5 @@
 /*
- * `fb.h` -- framebuffer
+ * ALIX: `sys/dev/fb.h` -- framebuffer device
  * Copyright (c) 2023 Alan Potteiger
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
@@ -39,7 +39,6 @@ typedef uint32_t Color;
 
 void 	fb_init(struct kargtab *kargtab);
 Color	fb_color(Color red, Color green, Color blue);
-
 
 #endif /* _FB_H_ */
 

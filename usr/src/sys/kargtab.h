@@ -1,5 +1,5 @@
 /*
- * `kargtab.h` -- Structure required by kernel from bootloader
+ * ALIX: `sys/kargtab.h` -- Structure required by kernel from bootloader
  * Copyright (c) 2023 Alan Potteiger
  *
  * This Source Code Form is subject to the terms of the Mozilla Public

@@ -1,5 +1,5 @@
 /*
- * `uart.c` -- UART/Serial communication (mainly for QEMU).
+ * ALIX: `sys/dev/uart.c` -- UART/Serial communication (mainly for QEMU).
  * Copyright (c) 2023 Alan Potteiger
  *
  * This Source Code Form is subject to the terms of the Mozilla Public

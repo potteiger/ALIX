@@ -1,5 +1,5 @@
 /*
- * `pmm.c` -- Physical Memory Manager
+ * ALIX: `sys/pmm.h` -- Physical Memory Manager
  * Copyright (c) 2023 Alan Potteiger
  *
  * This Source Code Form is subject to the terms of the Mozilla Public

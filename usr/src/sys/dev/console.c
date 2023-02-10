@@ -1,5 +1,5 @@
 /*
- * `syscon.c` -- System console interface
+ * ALIX: `sys/dev/console.c` -- System console device
  * Copyright (c) 2023 Alan Potteiger
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
@@ -13,23 +13,29 @@
 #include <stdarg.h>
 
 #include <sys/kargtab.h>
-#include <sys/uart.h>
-#include <sys/syscon.h>
-#include <sys/vt.h>
-
-/*
- * System Console interface for the kernel. Currently not focussing on a virtual
- * terminal until the system matures to a point where it would be beneficial.
- * For the time being `syscon` will only interface with UART. Once a virtual
- * terminal is implemented this interface will change very little.
- * 									-Alan
- */
+#include <sys/dev/uart.h>
+#include <sys/dev/vt.h>
 
 void
-syscon_init(struct kargtab *kargtab)
+console_init(struct kargtab *kargtab)
 {
 	uart_init();		/* Initialize UART for messaging */
 	vt_init(kargtab);	/* Virtual terminal */
+}
+
+void
+kputc(char ch)
+{
+	uart_putc(ch);
+	vt_putc(ch);
+}
+
+/* Print a null terminated string */
+void
+kputs(char *string)
+{
+	for (; *string != '\0'; string++)
+		kputc(*string);
 }
 
 /*
@@ -38,7 +44,7 @@ syscon_init(struct kargtab *kargtab)
  * `sign: unsigned=0 signed=1
  */
 static void
-printval(int64_t sval, int base, int sign)
+printnum(int64_t sval, int base, int sign)
 {
 	static char chars[] = "0123456789ABCDEF";
 	static char buf[32];
@@ -81,21 +87,6 @@ printval(int64_t sval, int base, int sign)
 		kputc(buf[i]);
 		i++;
 	}
-}
-
-void
-kputc(char ch)
-{
-	uart_putc(ch);
-	vt_putc(ch);
-}
-
-/* Print a null terminated string */
-void
-kputs(char *string)
-{
-	for (; *string != '\0'; string++)
-		kputc(*string);
 }
 
 /*
@@ -191,7 +182,7 @@ swtch:
 		else
 			num = va_arg(args, int32_t);
 
-		printval(num, base, sign);
+		printnum(num, base, sign);
 	}
 
 	va_end(args);
@@ -199,7 +190,7 @@ swtch:
 
 
 void
-syscon_write(void *buf, size_t sz)
+console_write(void *buf, size_t sz)
 {
 	for (; sz > 0; sz--) {
 		kputc(*(char *)buf);

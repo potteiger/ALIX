@@ -1,5 +1,5 @@
 /*
- * `vt.c` -- Virtual (framebuffer) terminal
+ * ALIX: `sys/dev/vt.c` -- Virtual (framebuffer) terminal
  * Copyright (c) 2023 Alan Potteiger
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
@@ -10,7 +10,7 @@
 #include <stdint.h>
 
 #include <sys/kargtab.h>
-#include <sys/fb.h>
+#include <sys/dev/fb.h>
 
 /*
  * This is a suuuuper simple virtual terminal driver, it's shitty honestly.
