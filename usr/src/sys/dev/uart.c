@@ -9,7 +9,7 @@
 
 #include <stdint.h>
 
-#include <sys/x64.h>
+#include <sys/x64/io.h>
 
 /* COM1 Port number */
 #define COM1 0x3F8

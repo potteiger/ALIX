@@ -13,7 +13,7 @@
 
 #include <efi.h>
 #include <sys/kargtab.h>
-#include <sys/pmm.h>
+#include <sys/x64/gdt.h>
 #include <sys/dev/console.h>
 
 extern uintptr_t *kbase;	/* Kernel base address defined in `link.ld`. */
@@ -21,14 +21,11 @@ extern uintptr_t *kbase;	/* Kernel base address defined in `link.ld`. */
 void
 main(struct kargtab *kargtab)
 {
-	console_init(kargtab);	/* Initialize system console and dependencies */
-	kprintf("ALIX...\n");	/* We can talk */
-
-	if (kargtab != NULL)
-		kprintf("Received arguments from bootloader\n");
+	console_init(kargtab);
+	kprintf("ALIX...\n");
 	kprintf("Kernel loaded at %lx\n", &kbase);
 
-	pmm_init(kargtab);	/* Physical memory manager */
+	gdt_init();
         
 	for(;;);
 }

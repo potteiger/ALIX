@@ -1,5 +1,5 @@
 /*
- * ALIX: `sys/x64.h` -- Prototypes for assorted x86-64 assembly procedures.
+ * ALIX: `sys/x64/gdt.h` -- x64 Global Descriptor Table
  * Copyright (c) 2023 Alan Potteiger
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
@@ -7,10 +7,10 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
-#ifndef _X64_H_
-#define _X64_H_
+#ifndef _X64_GDT_H_
+#define _X64_GDT_H_
 
-void	outb(uint16_t port, uint8_t byte);
+void	gdt_init(void);
 
-#endif
+#endif /* _X64_GDT_H_ */
 

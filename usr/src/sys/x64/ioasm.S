@@ -1,5 +1,5 @@
 ;
-; ALIX: `sys/x64.s` -- Assorted assembly procedures for x86-64
+; ALIX: `sys/x64/ioasm.S` -- x64 I/O procedures
 ; Copyright (c) 2023 Alan Potteiger
 ;
 ; This Source Code Form is subject to the terms of the Mozilla Public
