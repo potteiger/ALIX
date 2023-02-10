@@ -18,7 +18,7 @@
  * Setup COM1 serial line to send messages
  */
 void
-uart_init()
+uart_init(void)
 {
 	/* TODO: Revisit when enabling interrupts and reads. */
 	outb(COM1+1, 0x00); 	/* Disable interrupts (for now). */
