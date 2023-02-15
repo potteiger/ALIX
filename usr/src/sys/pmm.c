@@ -17,14 +17,14 @@
 #define PAGE_SIZE	0x1000
 
 /* UEFI Memory Map */
-static efi_memory_descriptor *	mmap;		/* Root descriptor */
+static Efi_memory_descriptor *	mmap;		/* Root descriptor */
 static uint64_t			mmap_sz;	/* Total mmap size */
 static uint64_t 		mmap_dsz;	/* Size of single descriptor */
 
 void
 pmm_init(struct kargtab *kargtab)
 {
-	mmap = (efi_memory_descriptor *) kargtab->mmap;
+	mmap = (Efi_memory_descriptor *) kargtab->mmap;
 	mmap_sz = kargtab->mmap_sz;
 	mmap_dsz = kargtab->mmap_dsz;
 	

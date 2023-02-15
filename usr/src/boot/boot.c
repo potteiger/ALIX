@@ -37,13 +37,13 @@
 extern void			load(void);
 
 /* EFI handles, protocols, other data structures */
-efi_system_table *		systab;		/* EFI system table */
-efi_handle 			imghan;		/* EFI app image handle */
-efi_loaded_image_protocol *	imgpro;		/* EFI image protocol inteface*/
-efi_boot_services *		bootsrv;	/* boot services */
-efi_file_protocol *		filesys;	/* root of filesystem */
-efi_file_protocol *		kfile;		/* kernel file handle */
-efi_graphics_output_protocol *	gop;		/* Graphics Output Protocol */
+Efi_system_table *		systab;		/* EFI system table */
+Efi_handle 			imghan;		/* EFI app image handle */
+Efi_loaded_image_protocol *	imgpro;		/* EFI image protocol inteface*/
+Efi_boot_services *		bootsrv;	/* boot services */
+Efi_file_protocol *		filesys;	/* root of filesystem */
+Efi_file_protocol *		kfile;		/* kernel file handle */
+Efi_graphics_output_protocol *	gop;		/* Graphics Output Protocol */
 uint64_t			mmapkey;	/* EFI mmap key */
 
 /*
@@ -89,12 +89,12 @@ memzero(uintptr_t from, uintptr_t to)
 uintptr_t
 palloc(int count)
 {
-	efi_status s;
+	Efi_status s;
 	uintptr_t ptr;
 
 	s = bootsrv->allocate_pages(
-		allocate_any_pages,
-		efi_runtime_services_data,
+		Efi_allocate_any_pages,
+		Efi_runtime_services_data,
 		count,
 		&ptr
 	);
@@ -108,10 +108,10 @@ palloc(int count)
 static void
 filesys_init()
 {
-	efi_status s;
-	efi_guid guid;
-	efi_simple_file_system_protocol * sfsp;
-	efi_handle devhandle;
+	Efi_status s;
+	Efi_guid guid;
+	Efi_simple_file_system_protocol * sfsp;
+	Efi_handle devhandle;
 
 	guid = EFI_LOADED_IMAGE_PROTOCOL_GUID;
 	s = bootsrv->open_protocol(
@@ -149,7 +149,7 @@ filesys_init()
 static void
 find_kernel()
 {
-	efi_status s;
+	Efi_status s;
 	
 	s = filesys->open(
 		filesys,
@@ -168,10 +168,10 @@ find_kernel()
 static void
 find_font()
 {
-	efi_status s;
-	efi_guid guid;
-	efi_file_protocol *d, *f;
-	efi_file_info *info;
+	Efi_status s;
+	Efi_guid guid;
+	Efi_file_protocol *d, *f;
+	Efi_file_info *info;
 	uint64_t sz;
 	uintptr_t pgs;
 
@@ -204,7 +204,7 @@ find_font()
 	info = NULL;
 	f->get_info(f, &guid, &sz, (void *) info);
 	s = bootsrv->allocate_pool(
-		efi_runtime_services_data,
+		Efi_runtime_services_data,
 		sz,
 		(void **) &info
 	);
@@ -241,8 +241,8 @@ find_font()
 static void
 gop_init(void)
 {
-	efi_guid guid;
-	efi_status s;
+	Efi_guid guid;
+	Efi_status s;
 
 	guid = EFI_GRAPHICS_OUTPUT_PROTOCOL_GUID;
 	s = bootsrv->locate_protocol(
@@ -262,11 +262,11 @@ gop_init(void)
 void
 getmmap()
 {
-	efi_status s;
+	Efi_status s;
 	uint64_t sz, dsz;
 	uint32_t ver;
 	int i, count;
-	efi_memory_descriptor *mmap;
+	Efi_memory_descriptor *mmap;
 
 	mmap = NULL;
 
@@ -281,7 +281,7 @@ getmmap()
 
 	sz += (dsz * 2);
 	s = bootsrv->allocate_pool(
-		efi_runtime_services_data,
+		Efi_runtime_services_data,
 		sz,
 		(void **) &mmap
 	);
@@ -304,9 +304,9 @@ getmmap()
 }
 
 void
-boot(efi_handle img_handle, efi_system_table *st)
+boot(Efi_handle img_handle, Efi_system_table *st)
 {
-	efi_status s;
+	Efi_status s;
 
 	imghan = img_handle;
 	systab = st;

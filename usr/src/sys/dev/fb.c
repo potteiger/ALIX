@@ -23,11 +23,11 @@ _Framebuffer FRAMEBUFFER;
 void
 fb_init(struct kargtab *kargtab)
 {
-	efi_graphics_output_protocol_mode *mode;
+	Efi_graphics_output_protocol_mode *mode;
 	uint32_t *fb;
 	int i;
 
-	mode = (efi_graphics_output_protocol_mode *) kargtab->gop_mode;
+	mode = (Efi_graphics_output_protocol_mode *) kargtab->gop_mode;
 
 	FRAMEBUFFER = (struct Framebuffer) {
 		.base = (uintptr_t) mode->framebuffer_base,

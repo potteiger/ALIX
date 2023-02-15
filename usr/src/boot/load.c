@@ -28,11 +28,11 @@ extern void 				memzero(uintptr_t from, uintptr_t to);
 extern uintptr_t			palloc(int count);
 extern int 				getmmap(void);
 
-extern efi_system_table *		systab;	/* EFI system table */
-extern efi_handle			imghan; /* EFI app image handle */
-extern efi_boot_services *		bootsrv;/* boot services */
-extern efi_file_protocol *		kfile;  /* kernel file handle */
-extern efi_graphics_output_protocol *	gop;    /* Graphics Output Protocol */
+extern Efi_system_table *		systab;	/* EFI system table */
+extern Efi_handle			imghan; /* EFI app image handle */
+extern Efi_boot_services *		bootsrv;/* boot services */
+extern Efi_file_protocol *		kfile;  /* kernel file handle */
+extern Efi_graphics_output_protocol *	gop;    /* Graphics Output Protocol */
 extern uint64_t				mmapkey;/* EFI mmap key */
 extern struct kargtab 			kargtab;/* Kernel argument table */
 
@@ -73,12 +73,12 @@ static uint64_t *pdpt;
 static void
 read_phdrs(void)
 {
-	efi_status s;
+	Efi_status s;
 	uint64_t bufsz;
 
 	bufsz = ehdr.e_phentsize * ehdr.e_phnum;
 	s = bootsrv->allocate_pool(
-		efi_loader_data,
+		Efi_loader_data,
 		bufsz,
 		(void **) &phdrs
 	);
@@ -99,7 +99,7 @@ read_phdrs(void)
 static void
 read_ehdr(void)
 {
-	efi_status s;
+	Efi_status s;
 	uint64_t bufsz;
 
 	bufsz = sizeof(Elf64_Ehdr);
@@ -195,7 +195,7 @@ mapaddr(uintptr_t virt, uintptr_t phys)
 static void
 loadk(void)
 {
-	efi_status s;
+	Efi_status s;
 	uintptr_t page;
 	uint64_t pgs, sz;
 	int i, j, loadable;
@@ -214,8 +214,8 @@ loadk(void)
 			pgs = phdrs[i].p_memsz / 0x1000;
 
 		s = bootsrv->allocate_pages(
-			allocate_any_pages,
-			efi_runtime_services_code,
+			Efi_allocate_any_pages,
+			Efi_runtime_services_code,
 			pgs,
 			(uint64_t *) &page
 		);
@@ -252,7 +252,7 @@ loadk(void)
 void
 load(void)
 {
-	efi_status s;
+	Efi_status s;
 	uintptr_t cr3;
 	uint64_t *pml4;
 	uintptr_t val;
