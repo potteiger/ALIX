@@ -37,5 +37,7 @@ er:
 	mov cr3, rax
 
 	mov rdi, rdx
+
+	cli
 	call rcx
 
