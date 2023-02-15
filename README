@@ -1,6 +1,5 @@
-ALIX
-====
-A Little Unix-like
+ALIX -- A Little Unix-like
+==========================
 
 Just a little personal project of mine. Writing a small Unix-like system from
 scratch targetting x86-64 EFI machines. Looking to learn everything I can along
@@ -22,11 +21,13 @@ TODO
  - Kernel
  	- everything
 
-LICENSE
--------
+LICENSES
+--------
 
-MPL-v2, see `LICENSE`.
+ALIX is under the MPL-v2, see `LICENSE`.
 
-`spleen` font for the console is licensed differently, see:
-`boot/font/SPLEEN-LICENSE`.
+For the `spleen` font license see: `boot/font/SPLEEN-LICENSE`.
+
+An OVMF binary is included in the repository out of convenience for testing with
+QEMU, see `boot/OVMF-LICENSE` for its license.
 

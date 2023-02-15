@@ -1,5 +1,4 @@
 *.o
 *.core
 *.lib
-boot/OVMFX64.fd
 
